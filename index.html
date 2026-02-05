@@ -3,82 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת שו"ב נס ציונה - Final Version</title>
+    <title>חמ"ל נס ציונה V8.0 - גרסת PM סופית</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <script type="importmap">
       { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } }
     </script>
     <style>
-        :root { --bg: #0d0d0d; --sidebar: #161616; --accent: #00bcf2; --danger: #ff4444; --success: #28a745; }
-        body { margin: 0; background: var(--bg); color: #e0e0e0; font-family: 'Segoe UI', system-ui; display: flex; height: 100vh; overflow: hidden; }
-        
-        /* סרגל צד */
-        #sidebar { width: 360px; background: var(--sidebar); border-left: 2px solid #333; display: flex; flex-direction: column; padding: 25px; z-index: 100; box-shadow: 10px 0 30px rgba(0,0,0,0.5); }
+        :root { --bg: #0a0a0a; --panel: #161616; --accent: #00bcf2; --danger: #ff4444; --success: #28a745; }
+        body { margin: 0; background: var(--bg); color: #e0e0e0; font-family: system-ui; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 360px; background: var(--panel); border-left: 1px solid #333; display: flex; flex-direction: column; padding: 25px; z-index: 100; box-shadow: 10px 0 30px rgba(0,0,0,0.7); }
         #main-view { flex-grow: 1; position: relative; background: #000; }
-        
-        /* אזור העלאה והדבקה */
-        .upload-area { border: 2px dashed #444; padding: 25px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; background: #222; margin-bottom: 10px; }
-        .upload-area:hover { border-color: var(--accent); background: #2a2a2a; }
-        
-        /* כפתורים */
+        .upload-area { border: 2px dashed #444; padding: 25px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; background: #1a1a1a; margin-bottom: 10px; }
+        .upload-area:hover { border-color: var(--accent); background: #222; }
+        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; }
         .btn { padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 10px; color:white; font-size: 15px; }
         .btn-primary { background: var(--accent); }
-        .btn-save { background: var(--success); }
-        .btn-draw { background: var(--danger); }
-        
-        /* תצוגת נתונים */
-        #file-list { font-size: 12px; color: #888; margin-bottom: 15px; max-height: 80px; overflow-y: auto; }
         .floor-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
         .floor-btn { background: #333; color: white; border: 1px solid #444; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
-        .floor-btn.active { background: var(--accent); border-color: white; }
-        
-        /* שכבות ציור ותלת-ממד */
-        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; }
-        #loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        .floor-btn.active { background: var(--accent); }
+        #loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        #debug-console { margin-top: auto; font-family: monospace; font-size: 11px; color: #888; background: #000; padding: 12px; border-radius: 6px; border: 1px solid #333; }
         .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        
-        #debug-console { margin-top: auto; font-family: monospace; font-size: 11px; background: #000; padding: 10px; border-radius: 6px; color: #666; border: 1px solid #222; }
     </style>
 </head>
 <body>
 
 <div id="loading-overlay">
     <div class="spinner"></div>
-    <div style="font-size:18px;"><b>צוות המומחים מנתח את המבנה...</b></div>
+    <div id="status-text" style="font-size:18px;">צוות המומחים מנתח את התכניות...</div>
 </div>
 
 <div id="sidebar">
-    <h1 style="color:var(--accent); margin:0 0 5px 0; font-size:22px;">חמ"ל נס ציונה</h1>
-    <p style="font-size:12px; color:#666; margin-bottom:20px;">ניהול אירוע הנדסי בתלת-ממד</p>
+    <h1 style="color:var(--accent); margin:0;">שו"ב נס ציונה</h1>
+    <p style="font-size:12px; color:#666; margin-bottom:20px;">גרסה 8.0 - מערכת מאוחדת</p>
     
     <div class="upload-area" onclick="document.getElementById('file-input').click()">
         <span style="font-size:24px;">📁</span><br>
-        <span id="upload-status"><b>הדבק תמונה (Ctrl+V)</b><br>או בחר קבצים מהמחשב</span>
+        <span id="upload-status"><b>הדבק (Ctrl+V)</b> או בחר תמונות</span>
         <input type="file" id="file-input" multiple hidden>
     </div>
 
-    <div id="file-list"></div>
+    <div id="file-list" style="font-size:11px; margin-top:10px; color:var(--accent);"></div>
 
-    <button class="btn btn-primary" onclick="runAnalysis()">הפעל ניתוח רב-קומתי</button>
+    <button id="process-btn" class="btn btn-primary" onclick="runAnalysis()">הפעל ניתוח אוטומטי</button>
 
-    <div id="floor-navigation" class="floor-nav"></div>
+    <div id="floor-nav" class="floor-nav"></div>
 
-    <div id="building-data" style="margin-top:25px; background:#222; padding:15px; border-radius:8px; display:none; border-right: 4px solid var(--accent);">
-        <h3 id="b-title" style="margin:0; color:var(--accent); font-size:16px;"></h3>
-        <div id="b-details" style="font-size:14px; margin-top:10px;"></div>
+    <div id="building-data" style="margin-top:20px; background:#1e1e1e; padding:15px; border-radius:8px; display:none; border-right:4px solid var(--accent);">
+        <h3 id="b-title" style="margin:0; font-size:16px;"></h3>
+        <div id="b-details" style="font-size:13px; margin-top:10px;"></div>
     </div>
 
-    <div id="debug-console">סטטוס: מוכן לעבודה</div>
+    <div id="debug-console">סטטוס: מוכן לעבודה. (הדבק Ctrl+V)</div>
 </div>
 
 <div id="main-view">
     <canvas id="drawing-layer"></canvas>
     <div style="position:absolute; bottom:25px; right:25px; z-index:20; display:flex; flex-direction:column; gap:10px; width:130px;">
-        <button class="btn btn-draw" onclick="toggleDraw()">✏️ צייר/בטל</button>
+        <button class="btn" style="background:var(--danger);" onclick="toggleDraw()">✏️ צייר</button>
         <button class="btn" style="background:#444;" onclick="clearCanvas()">🗑️ נקה</button>
-        <button class="btn btn-save" onclick="saveFinalResult()">📷 שמור תמונה</button>
+        <button class="btn" style="background:var(--success);" onclick="saveResult()">📷 שמור</button>
     </div>
 </div>
 
@@ -90,8 +76,7 @@
 
     let scene, camera, renderer, floorGroup, fabricCanvas, allFiles = [];
 
-    // --- אתחול מנוע 3D ---
-    function init3D() {
+    function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 360) / window.innerHeight, 0.1, 1000);
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -102,20 +87,20 @@
         scene.add(floorGroup, new THREE.AmbientLight(0xffffff, 1), new THREE.DirectionalLight(0xffffff, 0.5));
         camera.position.set(12, 12, 12);
         camera.lookAt(0, 4, 0);
+
+        fabricCanvas = new fabric.Canvas('drawing-layer', {
+            width: window.innerWidth - 360, height: window.innerHeight, isDrawingMode: false
+        });
+        fabricCanvas.freeDrawingBrush.color = "red";
+        fabricCanvas.freeDrawingBrush.width = 5;
+        
         animate();
     }
     function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
 
-    // --- אתחול שכבת ציור ---
-    fabricCanvas = new fabric.Canvas('drawing-layer', {
-        width: window.innerWidth - 360, height: window.innerHeight, isDrawingMode: false
-    });
-    fabricCanvas.freeDrawingBrush.color = "red";
-    fabricCanvas.freeDrawingBrush.width = 5;
-
-    // --- ניהול קבצים (הדבקה ובחירה) ---
     const log = (msg) => document.getElementById('debug-console').innerText = `> ${msg}`;
 
+    // --- תמיכה בהדבקה ובחירה ---
     window.addEventListener('paste', (e) => {
         const items = e.clipboardData.items;
         for (let item of items) {
@@ -123,58 +108,58 @@
                 const file = item.getAsFile();
                 allFiles.push(file);
                 log("תמונה הודבקה בהצלחה");
-                updateUI();
+                updateFileList();
             }
         }
     });
 
     document.getElementById('file-input').onchange = (e) => {
         allFiles = [...allFiles, ...Array.from(e.target.files)];
-        updateUI();
+        updateFileList();
     };
 
-    function updateUI() {
-        document.getElementById('file-list').innerHTML = allFiles.map((f, i) => `<div>✅ ${f.name || 'תמונה מהדבקה'}</div>`).join('');
-        document.getElementById('upload-status').innerText = `${allFiles.length} קבצים מוכנים`;
+    function updateFileList() {
+        document.getElementById('file-list').innerText = `ממתינים לניתוח: ${allFiles.length} קבצים`;
     }
 
-    // --- ליבת הפרויקט: ניתוח AI ---
-    async function fileToPart(file) {
-        return new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve({ inlineData: { data: reader.result.split(',')[1], mimeType: file.type } });
-            reader.readAsDataURL(file);
-        });
-    }
-
+    // --- ניתוח AI חסין (תיקון ל-404) ---
     window.runAnalysis = async () => {
         if (allFiles.length === 0) return alert("אנא הוסף/הדבק תמונות תחילה");
         document.getElementById('loading-overlay').style.display = 'flex';
-        log("שולח נתונים לצוות ה-AI...");
+        log("מנתח מבנה מול שרתי גוגל...");
 
         try {
             const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-            const prompt = `אתה מומחה חילוץ והצלה. נתח את הגרמושקות. 
-            החזר אך ורק JSON במבנה הבא: {"name": "שם מבנה", "floors": [{"lvl": 0, "desc": "תיאור קומה", "safety": "מיקום ממד"}]}`;
+            const prompt = `Analyze architectural plans. Identify floors. 
+            Return ONLY valid JSON: {"name": "Building", "floors": [{"lvl": 0, "desc": "info", "safety": "mamad"}]}`;
+
+            const fileToPart = async (file) => {
+                const b64 = await new Promise(r => {
+                    const reader = new FileReader();
+                    reader.onload = () => r(reader.result.split(',')[1]);
+                    reader.readAsDataURL(file);
+                });
+                return { inlineData: { data: b64, mimeType: file.type } };
+            };
 
             const parts = await Promise.all(allFiles.map(fileToPart));
             const result = await model.generateContent([prompt, ...parts]);
-            const response = await result.response;
-            const text = response.text().match(/\{[\s\S]*\}/)[0];
+            const text = (await result.response).text().match(/\{[\s\S]*\}/)[0];
             
-            renderBuilding(JSON.parse(text));
-            log("ניתוח הושלם. המודל מוכן.");
+            render(JSON.parse(text));
+            log("הניתוח הושלם בהצלחה!");
         } catch (e) {
             log(`שגיאה: ${e.message}`);
-            alert("תקלה בניתוח. בדוק את התיבה השחורה למטה.");
+            console.error(e);
+            alert("תקלה בניתוח. וודא שלחצת על SAVE ב-Google Console.");
         } finally {
             document.getElementById('loading-overlay').style.display = 'none';
         }
     };
 
-    function renderBuilding(data) {
+    function render(data) {
         floorGroup.clear();
-        const nav = document.getElementById('floor-navigation');
+        const nav = document.getElementById('floor-nav');
         nav.innerHTML = '';
         document.getElementById('building-data').style.display = 'block';
         document.getElementById('b-title').innerText = data.name;
@@ -198,22 +183,22 @@
         });
     }
 
-    // --- פעולות כפתורים ---
+    // --- כלי עבודה ---
     window.toggleDraw = () => fabricCanvas.isDrawingMode = !fabricCanvas.isDrawingMode;
     window.clearCanvas = () => fabricCanvas.clear();
-    window.saveFinalResult = () => {
+    window.saveResult = () => {
         const temp = document.createElement('canvas');
         temp.width = renderer.domElement.width; temp.height = renderer.domElement.height;
         const ctx = temp.getContext('2d');
         ctx.drawImage(renderer.domElement, 0, 0);
-        const img = new Image(); img.src = fabricCanvas.toDataURL();
-        img.onload = () => {
-            ctx.drawImage(img, 0, 0);
+        const dImg = new Image(); dImg.src = fabricCanvas.toDataURL();
+        dImg.onload = () => {
+            ctx.drawImage(dImg, 0, 0);
             const a = document.createElement('a'); a.download = 'plan.png'; a.href = temp.toDataURL(); a.click();
         };
     };
 
-    init3D();
+    init();
 </script>
 </body>
 </html>
