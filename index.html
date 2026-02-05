@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>שו"ב נס ציונה - גרסה 10.0 סופית</title>
+    <title>שו"ב נס ציונה - גרסה סופית 11.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <script type="importmap"> { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } } </script>
@@ -10,44 +10,40 @@
         :root { --accent: #00bcf2; --danger: #ff4444; --success: #28a745; }
         body { margin: 0; background: #0a0a0a; color: white; font-family: system-ui; display: flex; height: 100vh; overflow: hidden; }
         #sidebar { width: 350px; background: #161616; padding: 25px; border-left: 1px solid #333; display: flex; flex-direction: column; }
-        #main-view { flex-grow: 1; position: relative; }
-        .btn { padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; color: white; font-weight: bold; transition: 0.2s; }
-        .upload-box { border: 2px dashed #444; padding: 20px; text-align: center; border-radius: 10px; cursor: pointer; }
-        #loading { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; }
+        #main-view { flex-grow: 1; position: relative; background: #000; }
+        .btn { padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; color: white; font-weight: bold; }
+        .upload-area { border: 2px dashed #444; padding: 20px; text-align: center; border-radius: 10px; cursor: pointer; }
+        #loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; }
     </style>
 </head>
 <body>
-    <div id="loading">⏳ מנתח נתונים הנדסיים...</div>
-    
+    <div id="loading-overlay">⏳ מנתח נתונים הנדסיים...</div>
     <div id="sidebar">
         <h1 style="color:var(--accent); margin:0 0 10px 0;">חמ"ל נס ציונה</h1>
-        <div class="upload-box" onclick="document.getElementById('file-input').click()">
-            <b>הדבק תמונה (Ctrl+V)</b><br>או לחץ לבחירה
+        <div class="upload-area" onclick="document.getElementById('file-input').click()">
+            <b>הדבק תמונה (Ctrl+V)</b><br>או לחץ לבחירת קבצים
             <input type="file" id="file-input" multiple hidden>
         </div>
         <div id="file-list" style="font-size:12px; color:var(--accent); margin: 10px 0;"></div>
         <button class="btn" style="background:var(--accent);" onclick="runAnalysis()">הפעל ניתוח אוטומטי</button>
         <div id="floor-nav" style="margin-top:20px; display:flex; gap:5px; flex-wrap:wrap;"></div>
-        <div id="debug" style="margin-top:auto; font-family:monospace; font-size:11px; color:#555;">סטטוס: מוכן לעבודה.</div>
+        <div id="debug" style="margin-top:auto; font-family:monospace; font-size:11px; color:#555; background:#000; padding:10px;">מוכן לעבודה.</div>
     </div>
-
     <div id="main-view">
         <canvas id="drawing-layer"></canvas>
-        <div style="position:absolute; bottom:25px; right:25px; z-index:20; display:flex; flex-direction:column; gap:10px; width:120px;">
+        <div style="position:absolute; bottom:25px; right:25px; z-index:20; display:flex; flex-direction:column; gap:10px; width:130px;">
             <button class="btn" style="background:var(--danger);" onclick="toggleDraw()">✏️ צייר</button>
             <button class="btn" style="background:#444;" onclick="fabricCanvas.clear()">🗑️ נקה</button>
             <button class="btn" style="background:var(--success);" onclick="saveResult()">📷 שמור</button>
         </div>
     </div>
-
     <script type="module">
         import { GoogleGenerativeAI } from "@google/generative-ai";
         const API_KEY = "AIzaSyDZ5zkaD7aEJeLPyDRc3CtzMFbcEPNuiuQ"; // המפתח המעודכן שלך
         const genAI = new GoogleGenerativeAI(API_KEY);
         let scene, camera, renderer, floorGroup, fabricCanvas, allFiles = [];
 
-        // 1. אתחול מערכת
         function init() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 350) / window.innerHeight, 0.1, 1000);
@@ -62,25 +58,22 @@
         }
         function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
 
-        // 2. תמיכה בהדבקה (Ctrl+V)
         window.addEventListener('paste', e => {
             for (let item of e.clipboardData.items) {
                 if (item.type.includes("image")) {
-                    const file = item.getAsFile();
-                    allFiles.push(file);
-                    document.getElementById('file-list').innerText = `קבצים להפעלה: ${allFiles.length}`;
+                    allFiles.push(item.getAsFile());
+                    document.getElementById('file-list').innerText = `קבצים במחסנית: ${allFiles.length}`;
                 }
             }
         });
 
-        // 3. ניתוח AI
         window.runAnalysis = async () => {
-            if (allFiles.length === 0) return alert("קודם תדביק/תעלה תמונה");
-            document.getElementById('loading').style.display = 'flex';
+            if (allFiles.length === 0) return alert("אנא הדבק תמונה תחילה");
+            document.getElementById('loading-overlay').style.display = 'flex';
             try {
                 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                 const parts = await Promise.all(allFiles.map(async f => ({ inlineData: { data: await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result.split(',')[1]); rd.readAsDataURL(f); }), mimeType: f.type } })));
-                const result = await model.generateContent(["Analyze floor plans. Return ONLY JSON: {\"floors\": [{\"lvl\": 0, \"desc\": \"info\", \"safety\": \"mamad\"}]}", ...parts]);
+                const result = await model.generateContent(["Analyze plan. Return ONLY JSON: {\"floors\": [{\"lvl\": 0, \"desc\": \"info\", \"safety\": \"mamad\"}]}", ...parts]);
                 const data = JSON.parse((await result.response).text().match(/\{[\s\S]*\}/)[0]);
                 
                 floorGroup.clear(); document.getElementById('floor-nav').innerHTML = '';
@@ -90,18 +83,17 @@
                     const b = document.createElement('button'); b.innerText = `קומה ${f.lvl}`; b.style.padding="8px"; b.onclick = () => { floorGroup.children.forEach((mesh, idx) => { mesh.visible = (idx === i); mesh.material.wireframe = false; }); };
                     document.getElementById('floor-nav').appendChild(b);
                 });
-                document.getElementById('debug').innerText = "> ניתוח הושלם בהצלחה.";
+                document.getElementById('debug').innerText = "> ניתוח הושלם.";
             } catch (e) { document.getElementById('debug').innerText = "> שגיאה: " + e.message; }
-            document.getElementById('loading').style.display = 'none';
+            document.getElementById('loading-overlay').style.display = 'none';
         };
 
-        // 4. כלי עבודה
         window.toggleDraw = () => fabricCanvas.isDrawingMode = !fabricCanvas.isDrawingMode;
         window.saveResult = () => {
             const temp = document.createElement('canvas'); temp.width = renderer.domElement.width; temp.height = renderer.domElement.height;
             const ctx = temp.getContext('2d'); ctx.drawImage(renderer.domElement, 0, 0);
             const img = new Image(); img.src = fabricCanvas.toDataURL();
-            img.onload = () => { ctx.drawImage(img, 0, 0); const a = document.createElement('a'); a.download = 'emergency_plan.png'; a.href = temp.toDataURL(); a.click(); };
+            img.onload = () => { ctx.drawImage(img, 0, 0); const a = document.createElement('a'); a.download = 'plan.png'; a.href = temp.toDataURL(); a.click(); };
         };
         init();
     </script>
