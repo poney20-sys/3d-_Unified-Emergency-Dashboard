@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>חמ"ל נס ציונה V14.0</title>
+    <title>חמ"ל נס ציונה V15.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <script type="importmap"> { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } } </script>
@@ -82,12 +82,15 @@
                 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                 const parts = await Promise.all(files.map(async f => ({ inlineData: { data: await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result.split(',')[1]); rd.readAsDataURL(f); }), mimeType: f.type } })));
                 const result = await model.generateContent(["Identify floors in plan. Return JSON: {\"floors\": [{\"lvl\": 0, \"info\": \"...\"}]}", ...parts]);
-                const data = JSON.parse((await result.response).text().match(/\{[\s\S]*\}/)[0]);
+                const response = await result.response;
+                const text = response.text();
+                const data = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+                
                 floorGroup.clear(); document.getElementById('floor-nav').innerHTML = '';
                 data.floors.forEach((f, i) => {
                     const m = new THREE.Mesh(new THREE.BoxGeometry(10, 2, 8), new THREE.MeshPhongMaterial({ color: 0x00bcf2, transparent: true, opacity: 0.5, wireframe: true }));
                     m.position.y = i * 3; floorGroup.add(m);
-                    const b = document.createElement('button'); b.innerText = `קומה ${f.lvl}`; b.onclick = () => { floorGroup.children.forEach((mesh, idx) => { mesh.visible = (idx === i); mesh.material.wireframe = false; }); };
+                    const b = document.createElement('button'); b.style.cssText = "background:#333; color:white; border:1px solid #444; padding:8px; border-radius:6px; cursor:pointer;"; b.innerText = `קומה ${f.lvl}`; b.onclick = () => { floorGroup.children.forEach((mesh, idx) => { mesh.visible = (idx === i); mesh.material.wireframe = false; }); };
                     document.getElementById('floor-nav').appendChild(b);
                 });
             } catch (e) { document.getElementById('status').innerText = "שגיאה: " + e.message; }
