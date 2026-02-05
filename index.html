@@ -1,14 +1,21 @@
 window.runAnalysis = async () => {
-    if (allFiles.length === 0) return alert("אנא הוסף תמונה תחילה");
-    const overlay = document.getElementById('loading-overlay');
-    overlay.style.display = 'flex';
-    const consoleBox = document.getElementById('debug-console');
+    if (allFiles.length === 0) return alert("אנא הוסף תמונה תחילה (הדבקה או בחירה)");
     
-    consoleBox.innerText = "> שולח בקשה ל-Gemini...";
+    const overlay = document.getElementById('loading-overlay');
+    const consoleBox = document.getElementById('debug-console');
+    overlay.style.display = 'flex';
+    consoleBox.style.color = "#888";
+    consoleBox.innerText = "> שולח בקשה לניתוח הנדסי ב-Gemini...";
 
     try {
+        // וודא שהשתמשת במודל הנכון והעדכני
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const prompt = "Analyze floor plans and return JSON."; 
+        
+        // פרומפט משופר שמכריח את ה-AI לענות בפורמט שה-Render מצפה לו
+        const prompt = `Analyze these architectural plans for an emergency team. 
+        Identify all floors and extract: floor level (number), summary of layout, and exact Mamad location.
+        Return ONLY a JSON object like this: 
+        {"name": "Building Name", "floors": [{"lvl": 0, "desc": "Ground Floor", "safety": "North West Mamad"}]}`;
 
         const fileToPart = async (file) => {
             const base64 = await new Promise(r => {
@@ -20,28 +27,43 @@ window.runAnalysis = async () => {
         };
 
         const parts = await Promise.all(allFiles.map(fileToPart));
+        
+        // ביצוע הקריאה
         const result = await model.generateContent([prompt, ...parts]);
-        
-        // כאן המערכת בודקת את התשובה
         const response = await result.response;
-        const text = response.text();
-        consoleBox.innerText = "> תשובה התקבלה! מעבד נתונים...";
         
+        // התיקון הקריטי: המתנה לטקסט וניקוי שלו
+        const text = await response.text(); 
+        consoleBox.innerText = "> תשובה התקבלה. מחלץ נתונים הנדסיים...";
+
+        // איתור ה-JSON בתוך התשובה (מניעת קריסה אם ה-AI הוסיף טקסט מסביב)
         const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error("ה-AI לא הצליח לייצר מבנה נתונים תקין. נסה תמונה ברורה יותר.");
+        }
+
         const data = JSON.parse(jsonMatch[0]);
+        
+        // הצלחה - העברה לרינדור התלת-ממדי
         render(data);
+        consoleBox.style.color = "#28a745";
+        consoleBox.innerText = "> ניתוח הושלם בהצלחה. המודל נבנה.";
 
     } catch (e) {
-        // התיקון הקריטי: הצגת השגיאה האמיתית מגוגל
-        console.error("API Error:", e);
+        console.error("API Error Details:", e);
         consoleBox.style.color = "#ff4444";
-        consoleBox.innerText = `> שגיאת מערכת: ${e.message}`;
         
+        // פירוט שגיאות לפי קוד השגיאה של גוגל
+        let errorHint = `> שגיאת מערכת: ${e.message}`;
         if (e.message.includes("API key not valid")) {
-            consoleBox.innerText += "\n[המפתח שהזנת לא תואם למפתח ב-Cloud]";
+            errorHint = "> שגיאה: מפתח ה-API לא תקין. וודא שהעתקת אותו במלואו.";
         } else if (e.message.includes("not enabled")) {
-            consoleBox.innerText += "\n[חובה ללחוץ ENABLE ל-Generative Language API]";
+            errorHint = "> שגיאה: ה-Generative Language API לא מופעל בפרויקט שלך.";
+        } else if (e.message.includes("Safety")) {
+            errorHint = "> שגיאה: ה-AI חסם את התמונה מסיבות בטיחות. וודא שאין בה מידע רגיש מדי.";
         }
+        
+        consoleBox.innerText = errorHint;
     } finally {
         overlay.style.display = 'none';
     }
