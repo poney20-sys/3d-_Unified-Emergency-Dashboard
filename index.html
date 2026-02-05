@@ -2,99 +2,82 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>מערכת שו"ב נס ציונה V9.0 - גרסת PM</title>
+    <title>שו"ב נס ציונה - גרסת חירום</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <script type="importmap"> { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } } </script>
     <style>
-        :root { --accent: #00bcf2; --danger: #ff4444; --success: #28a745; --panel: #161616; }
-        body { margin: 0; background: #0a0a0a; color: white; font-family: system-ui; display: flex; height: 100vh; overflow: hidden; }
-        #sidebar { width: 360px; background: var(--panel); padding: 25px; border-left: 1px solid #333; display: flex; flex-direction: column; }
-        #main-view { flex-grow: 1; position: relative; background: #000; }
-        .btn { padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; color: white; font-weight: bold; }
-        .upload-box { border: 2px dashed #444; padding: 20px; text-align: center; border-radius: 10px; cursor: pointer; margin-bottom: 15px; }
-        #loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        #debug-console { margin-top: auto; font-family: monospace; font-size: 11px; color: #666; background: #000; padding: 10px; border: 1px solid #222; }
+        body { margin: 0; background: #000; color: white; font-family: system-ui; display: flex; height: 100vh; }
+        #sidebar { width: 300px; background: #111; padding: 20px; border-left: 1px solid #333; }
+        #viewer { flex-grow: 1; position: relative; }
+        .btn { padding: 12px; width: 100%; margin-top: 10px; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; }
+        #canvas-layer { position: absolute; top: 0; left: 0; z-index: 10; }
     </style>
 </head>
 <body>
-    <div id="loading-overlay">⏳ צוות המומחים מנתח את המבנה...</div>
     <div id="sidebar">
-        <h1 style="color:var(--accent); margin:0 0 10px 0;">שו"ב נס ציונה</h1>
-        <div class="upload-box" onclick="document.getElementById('file-input').click()">
-            <b>הדבק תמונה (Ctrl+V)</b><br>או לחץ לבחירה
-            <input type="file" id="file-input" multiple hidden>
-        </div>
-        <div id="file-list" style="font-size:11px; color:var(--accent); margin-bottom:15px;"></div>
-        <button class="btn" style="background:var(--accent);" onclick="runAnalysis()">הפעל ניתוח רב-קומתי</button>
-        <div id="floor-nav" style="margin-top:20px; display:flex; gap:5px; flex-wrap:wrap;"></div>
-        <div id="debug-console">מערכת מוכנה להדבקה.</div>
+        <h2>חמ"ל נס ציונה</h2>
+        <p>1. הדבק תמונה (Ctrl+V)<br>2. לחץ על הכפתור:</p>
+        <button class="btn" style="background:#00bcf2; color:white;" onclick="analyze()">הפעל ניתוח</button>
+        <div id="status" style="margin-top:20px; color:#888;">מוכן.</div>
     </div>
-    <div id="main-view">
-        <canvas id="drawing-layer"></canvas>
-        <div style="position:absolute; bottom:25px; right:25px; z-index:20; display:flex; flex-direction:column; gap:10px; width:120px;">
-            <button class="btn" style="background:var(--danger);" onclick="toggleDraw()">✏️ צייר</button>
-            <button class="btn" style="background:#444;" onclick="fabricCanvas.clear()">🗑️ נקה</button>
-            <button class="btn" style="background:var(--success);" onclick="saveResult()">📷 שמור</button>
+    <div id="viewer">
+        <canvas id="canvas-layer"></canvas>
+        <div style="position:absolute; bottom:20px; right:20px; z-index:20;">
+            <button class="btn" style="background:red; color:white;" onclick="toggleDraw()">✏️ צייר</button>
+            <button class="btn" style="background:green; color:white;" onclick="save()">📷 שמור</button>
         </div>
     </div>
-
     <script type="module">
         import { GoogleGenerativeAI } from "@google/generative-ai";
-        const API_KEY = "AIzaSyDXsIvtWq8mXRW179aa-zI6Dj95Ap_rfR8";
+        const API_KEY = "AIzaSyDZ5zkaD7aEJeLPyDRc3CtzMFbcEPNuiuQ"; // המפתח החדש שלך
         const genAI = new GoogleGenerativeAI(API_KEY);
         let scene, camera, renderer, floorGroup, fabricCanvas, allFiles = [];
 
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 360) / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-            renderer.setSize(window.innerWidth - 360, window.innerHeight);
-            document.getElementById('main-view').appendChild(renderer.domElement);
-            floorGroup = new THREE.Group(); scene.add(floorGroup, new THREE.AmbientLight(0xffffff, 1.5));
-            camera.position.set(12, 12, 12); camera.lookAt(0, 4, 0);
-            fabricCanvas = new fabric.Canvas('drawing-layer', { width: window.innerWidth-360, height: window.innerHeight, isDrawingMode: false });
-            fabricCanvas.freeDrawingBrush.color = "red"; fabricCanvas.freeDrawingBrush.width = 5;
-            animate();
-        }
-        function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
+        // אתחול מערכת
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, (window.innerWidth-300)/window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth-300, window.innerHeight);
+        document.getElementById('viewer').appendChild(renderer.domElement);
+        floorGroup = new THREE.Group(); scene.add(floorGroup, new THREE.AmbientLight(0xffffff, 1.5));
+        camera.position.set(10, 10, 10); camera.lookAt(0, 0, 0);
+        fabricCanvas = new fabric.Canvas('canvas-layer', { width: window.innerWidth-300, height: window.innerHeight, isDrawingMode: false });
+        fabricCanvas.freeDrawingBrush.color = "red"; fabricCanvas.freeDrawingBrush.width = 5;
 
+        // הדבקה
         window.addEventListener('paste', e => {
             for (let item of e.clipboardData.items) {
                 if (item.type.includes("image")) {
                     allFiles.push(item.getAsFile());
-                    document.getElementById('file-list').innerText = `קבצים במחסנית: ${allFiles.length}`;
+                    document.getElementById('status').innerText = `תמונה נוספה.`;
                 }
             }
         });
 
-        window.runAnalysis = async () => {
-            if (allFiles.length === 0) return alert("אנא הדבק תמונה (Ctrl+V)");
-            document.getElementById('loading-overlay').style.display = 'flex';
+        // ניתוח
+        window.analyze = async () => {
+            if (allFiles.length === 0) return alert("קודם תדביק תמונה!");
+            document.getElementById('status').innerText = "מנתח...";
             try {
                 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                 const parts = await Promise.all(allFiles.map(async f => ({ inlineData: { data: await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result.split(',')[1]); rd.readAsDataURL(f); }), mimeType: f.type } })));
-                const result = await model.generateContent(["Analyze plans. Return ONLY JSON: {\"floors\": [{\"lvl\": 0, \"desc\": \"info\", \"safety\": \"mamad\"}]}", ...parts]);
+                const result = await model.generateContent(["Analyze floor plan. Return JSON: {\"floors\":[{\"lvl\":0,\"desc\":\"info\"}]}", ...parts]);
                 const data = JSON.parse((await result.response).text().match(/\{[\s\S]*\}/)[0]);
-                renderBuilding(data);
-                document.getElementById('debug-console').innerText = "> ניתוח הושלם.";
-            } catch (e) { document.getElementById('debug-console').innerText = "> שגיאה: " + e.message; }
-            document.getElementById('loading-overlay').style.display = 'none';
+                
+                floorGroup.clear();
+                data.floors.forEach((f, i) => {
+                    const m = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 6), new THREE.MeshPhongMaterial({ color: 0x00bcf2, transparent: true, opacity: 0.5, wireframe: true }));
+                    m.position.y = i * 3; floorGroup.add(m);
+                });
+                document.getElementById('status').innerText = "הצלחה!";
+            } catch (e) { document.getElementById('status').innerText = "שגיאה: " + e.message; }
         };
 
-        function renderBuilding(data) {
-            floorGroup.clear(); document.getElementById('floor-nav').innerHTML = '';
-            data.floors.forEach((f, i) => {
-                const m = new THREE.Mesh(new THREE.BoxGeometry(10, 2.5, 8), new THREE.MeshPhongMaterial({ color: 0x00bcf2, transparent: true, opacity: 0.5, wireframe: true }));
-                m.position.y = i * 3; floorGroup.add(m);
-                const b = document.createElement('button'); b.innerText = `קומה ${f.lvl}`; b.style.padding="5px"; b.onclick = () => { floorGroup.children.forEach((mesh, idx) => { mesh.visible = (idx === i); mesh.material.wireframe = false; }); };
-                document.getElementById('floor-nav').appendChild(b);
-            });
-        }
-
         window.toggleDraw = () => fabricCanvas.isDrawingMode = !fabricCanvas.isDrawingMode;
-        window.saveResult = () => { const temp = document.createElement('canvas'); temp.width = renderer.domElement.width; temp.height = renderer.domElement.height; const ctx = temp.getContext('2d'); ctx.drawImage(renderer.domElement, 0, 0); const img = new Image(); img.src = fabricCanvas.toDataURL(); img.onload = () => { ctx.drawImage(img, 0, 0); const a = document.createElement('a'); a.download = 'plan.png'; a.href = temp.toDataURL(); a.click(); }; };
-        init();
+        window.save = () => { const temp = document.createElement('canvas'); temp.width = renderer.domElement.width; temp.height = renderer.domElement.height; const ctx = temp.getContext('2d'); ctx.drawImage(renderer.domElement, 0, 0); const img = new Image(); img.src = fabricCanvas.toDataURL(); img.onload = () => { ctx.drawImage(img, 0, 0); const a = document.createElement('a'); a.download = 'plan.png'; a.href = temp.toDataURL(); a.click(); }; };
+        function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
+        animate();
     </script>
 </body>
 </html>
