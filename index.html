@@ -2,167 +2,209 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Shani Cipher & AI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>חמ"ל הנדסי נס ציונה - מערכת שליטה V5.0</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script type="importmap">
+      { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } }
+    </script>
     <style>
-        :root { --p: #a855f7; --bg: #030712; --c: #111827; --t: #f9fafb; --success: #22c55e; }
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: var(--bg); color: var(--t); margin: 0; padding: 15px;
-            display: flex; justify-content: center; align-items: flex-start; min-height: 100vh;
-        }
-        .container { width: 100%; max-width: 450px; display: flex; flex-direction: column; gap: 20px; }
-        .card {
-            background: var(--c); padding: 2rem; border-radius: 28px;
-            border: 1px solid #1f2937; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-        }
-        h1 { color: var(--p); font-weight: 200; font-size: 1.5rem; text-align: center; margin: 0 0 1.5rem 0; letter-spacing: 2px; }
-        
-        .section-title { font-size: 0.85rem; color: #9ca3af; margin-bottom: 8px; display: block; font-weight: 600; }
-        
-        textarea {
-            width: 100%; height: 100px; background: #000; border: 1px solid #374151;
-            border-radius: 16px; color: #fff; padding: 15px; font-size: 1.1rem;
-            resize: none; box-sizing: border-box; transition: 0.3s;
-        }
-        textarea:focus { outline: none; border-color: var(--p); box-shadow: 0 0 10px rgba(168, 85, 247, 0.2); }
-
-        .output-box {
-            background: rgba(168, 85, 247, 0.05); padding: 20px; border-radius: 16px;
-            border: 1px dashed var(--p); font-size: 1.3rem; color: var(--p); 
-            min-height: 50px; word-break: break-all; text-align: center; cursor: pointer;
-        }
-
-        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
-        button {
-            padding: 14px; border-radius: 12px; border: none; cursor: pointer;
-            font-weight: 600; transition: 0.2s; font-size: 0.9rem;
-        }
-        .btn-p { background: var(--p); color: white; }
-        .btn-s { background: #374151; color: white; }
-        .btn-ai { background: linear-gradient(135deg, #a855f7, #6366f1); color: white; width: 100%; margin-top: 10px; }
-        button:hover { opacity: 0.9; transform: translateY(-1px); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .loader {
-            display: none; border: 3px solid #f3f3f3; border-top: 3px solid var(--p);
-            border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite;
-            margin: 10px auto;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        :root { --bg: #0d0d0d; --panel: #161616; --accent: #00bcf2; --danger: #ff4444; --success: #28a745; }
+        body { margin: 0; background: var(--bg); color: #e0e0e0; font-family: 'Segoe UI', system-ui; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 360px; background: var(--panel); border-left: 2px solid #333; display: flex; flex-direction: column; padding: 25px; z-index: 100; box-shadow: 10px 0 20px rgba(0,0,0,0.5); }
+        #main-view { flex-grow: 1; position: relative; background: #000; }
+        .upload-area { border: 2px dashed #444; padding: 25px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; background: #222; position: relative; }
+        .upload-area:hover { border-color: var(--accent); background: #2a2a2a; }
+        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; }
+        .btn { padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 10px; transition: 0.2s; color:white; font-size: 15px; }
+        .btn-primary { background: var(--accent); } .btn-primary:hover { opacity: 0.9; }
+        .floor-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+        .floor-btn { background: #333; color: white; border: 1px solid #444; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+        .floor-btn.active { background: var(--accent); border-color: white; }
+        #loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; text-align: center; }
+        .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: var(--accent); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #file-list { margin-top: 15px; font-size: 12px; color: #aaa; max-height: 80px; overflow-y: auto; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="card">
-        <h1>SHANI CIPHER</h1>
-        
-        <label class="section-title">הצפנה / פענוח:</label>
-        <textarea id="cipherInput" placeholder="הקלד בעברית להצפנה או אימוג'ים לפענוח..."></textarea>
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <div style="font-size:18px;"><b>מנתח גרמושקות...</b></div>
+    <div style="color:#aaa;">ה-AI בונה כעת את המודל התלת-ממדי</div>
+</div>
 
-        <div style="margin-top: 15px;">
-            <label class="section-title">תוצאה (לחץ להעתקה):</label>
-            <div id="cipherOutput" class="output-box" onclick="copyContent('cipherOutput')">...</div>
-        </div>
-
-        <div class="actions">
-            <button class="btn-s" onclick="clearCipher()">נקה</button>
-            <button class="btn-p" onclick="shareContent()">שתף 🔗</button>
-        </div>
+<div id="sidebar">
+    <h1 style="color:var(--accent); margin:0 0 5px 0;">נס ציונה - חירום</h1>
+    <p style="font-size:13px; color:#777; margin-bottom:20px;">מערכת שליטה ובקרה הנדסית</p>
+    
+    <div class="upload-area" onclick="document.getElementById('file-input').click()">
+        <span style="font-size:24px;">📁</span><br>
+        <span id="upload-status"><b>הדבק (Ctrl+V)</b> או בחר קבצים</span>
+        <input type="file" id="file-input" multiple hidden>
     </div>
 
-    <div class="card">
-        <h1>AI GENERATOR</h1>
-        <label class="section-title">בחר סוג הודעה:</label>
-        <select id="aiType" style="width:100%; padding:10px; border-radius:10px; background:#000; color:#fff; border:1px solid #374151;">
-            <option value="empowering">משפט מעצים</option>
-            <option value="proverb">פתגם חכם</option>
-            <option value="joke">בדיחת קרש</option>
-        </select>
-        
-        <button id="aiBtn" class="btn-ai" onclick="generateAI()">ייצר הודעה עם Gemini ✨</button>
-        <div id="loader" class="loader"></div>
+    <div id="file-list"></div>
 
-        <div style="margin-top: 15px;">
-            <div id="aiOutput" class="output-box" onclick="copyContent('aiOutput')">ההודעה תופיע כאן...</div>
-        </div>
+    <button id="process-btn" class="btn btn-primary" onclick="runAnalysis()">הפעל ניתוח אוטומטי</button>
+
+    <div id="floor-navigation" class="floor-nav"></div>
+
+    <div id="building-data" style="margin-top:25px; background:#222; padding:15px; border-radius:8px; display:none; border-right: 4px solid var(--accent);">
+        <h3 id="b-title" style="margin:0; color:var(--accent);"></h3>
+        <div id="b-details" style="font-size:14px; margin-top:10px;"></div>
     </div>
 </div>
 
-<script>
-    // הגדרות מפתחות ומיפוי
-    const GEMINI_KEY = "AIzaSyCggFk7n7qVRbcSHhwl1HAiadssVueeyCY"; //
-    const map = {
-        'א':'🦉','ב':'🦊','ג':'🐺','ד':'🦁','ה':'🐯','ו':'🦒','ז':'🦓','ח':'🐗','ט':'🐭','י':'🐹',
-        'כ':'🐰','ך':'🥕','ל':'🐻','מ':'🐨','ם':'🌳','נ':'🐼','ן':'🎋','ס':'🐮','ע':'🐷','פ':'🐸',
-        'ף':'🍃','צ':'🐒','ץ':'🍌','ק':'🦄','ר':'🐴','ש':'🐘','ת':'🐪',' ':' '
+<div id="main-view">
+    <canvas id="drawing-layer"></canvas>
+    <div style="position:absolute; bottom:25px; right:25px; z-index:20; display:flex; flex-direction:column; gap:10px; width:130px;">
+        <button class="btn" style="background:var(--danger);" onclick="toggleDraw()">✏️ צייר/בטל</button>
+        <button class="btn" style="background:#444;" onclick="clearCanvas()">🗑️ נקה</button>
+        <button class="btn" style="background:var(--success);" onclick="saveResult()">📷 שמור תמונה</button>
+    </div>
+</div>
+
+<script type="module">
+    import { GoogleGenerativeAI } from "@google/generative-ai";
+
+    const API_KEY = "AIzaSyDXsIvtWq8mXRW179aa-zI6Dj95Ap_rfR8";
+    const genAI = new GoogleGenerativeAI(API_KEY);
+
+    let scene, camera, renderer, floorGroup;
+    let fabricCanvas, buildingData;
+    let allFiles = [];
+
+    // --- אתחול 3D ---
+    function init3D() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 360) / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth - 360, window.innerHeight);
+        document.getElementById('main-view').appendChild(renderer.domElement);
+        
+        floorGroup = new THREE.Group();
+        scene.add(floorGroup, new THREE.AmbientLight(0xffffff, 1), new THREE.DirectionalLight(0xffffff, 0.5));
+        camera.position.set(12, 12, 12);
+        camera.lookAt(0, 4, 0);
+        animate();
+    }
+    function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
+
+    // --- אתחול שכבת ציור ---
+    fabricCanvas = new fabric.Canvas('drawing-layer', {
+        width: window.innerWidth - 360,
+        height: window.innerHeight,
+        isDrawingMode: false
+    });
+    fabricCanvas.freeDrawingBrush.color = "red";
+    fabricCanvas.freeDrawingBrush.width = 5;
+
+    // --- ניהול קבצים והדבקה ---
+    const updateUI = () => {
+        document.getElementById('file-list').innerHTML = allFiles.map((f, i) => `<div>✅ ${f.name || 'תמונה שהודבקה'}</div>`).join('');
+        document.getElementById('upload-status').innerHTML = `<b>${allFiles.length} קבצים מוכנים</b><br>לחץ להוספת עוד`;
     };
-    const rev = Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]));
 
-    // לוגיקת הצפנה
-    const cIn = document.getElementById('cipherInput');
-    const cOut = document.getElementById('cipherOutput');
-
-    cIn.addEventListener('input', () => {
-        const val = cIn.value;
-        if (!val) { cOut.innerText = "..."; return; }
-        const isHeb = /[\u0590-\u05FF]/.test(val);
-        cOut.innerText = Array.from(val).map(c => isHeb ? (map[c] || c) : (rev[c] || c)).join('');
+    window.addEventListener('paste', (e) => {
+        const items = e.clipboardData.items;
+        for (let item of items) {
+            if (item.type.indexOf("image") !== -1) {
+                const blob = item.getAsFile();
+                const file = new File([blob], `pasted_${Date.now()}.png`, { type: blob.type });
+                allFiles.push(file);
+                updateUI();
+            }
+        }
     });
 
-    function clearCipher() { cIn.value = ""; cOut.innerText = "..."; }
+    document.getElementById('file-input').addEventListener('change', (e) => {
+        allFiles = [...allFiles, ...Array.from(e.target.files)];
+        updateUI();
+    });
 
-    // לוגיקת AI
-    async function generateAI() {
-        const type = document.getElementById('aiType').value;
-        const btn = document.getElementById('aiBtn');
-        const loader = document.getElementById('loader');
-        const out = document.getElementById('aiOutput');
-
-        const prompts = {
-            empowering: "כתוב משפט מעצים אחד קצר וקולע בעברית",
-            proverb: "כתוב פתגם חכם או אמרה עמוקה אחת בעברית",
-            joke: "כתוב בדיחת קרש קצרה ומצחיקה בעברית"
+    // --- פונקציות כפתורים ---
+    window.toggleDraw = () => fabricCanvas.isDrawingMode = !fabricCanvas.isDrawingMode;
+    window.clearCanvas = () => fabricCanvas.clear();
+    window.saveResult = () => {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = renderer.domElement.width;
+        tempCanvas.height = renderer.domElement.height;
+        const ctx = tempCanvas.getContext('2d');
+        ctx.drawImage(renderer.domElement, 0, 0);
+        const drawImg = new Image();
+        drawImg.src = fabricCanvas.toDataURL();
+        drawImg.onload = () => {
+            ctx.drawImage(drawImg, 0, 0);
+            const link = document.createElement('a');
+            link.download = `emergency_plan_${Date.now()}.png`;
+            link.href = tempCanvas.toDataURL();
+            link.click();
         };
+    };
 
-        btn.disabled = true;
-        loader.style.display = "block";
-        out.innerText = "מייצר...";
+    // --- ליבת ה-AI: ניתוח והצגה ---
+    async function fileToPart(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve({ inlineData: { data: reader.result.split(',')[1], mimeType: file.type } });
+            reader.readAsDataURL(file);
+        });
+    }
 
+    window.runAnalysis = async () => {
+        if (allFiles.length === 0) return alert("אנא הוסף לפחות תמונה אחת (הדבקה או בחירה)");
+        document.getElementById('loading-overlay').style.display = 'flex';
+        
         try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompts[type] }] }] })
-            });
-            const data = await response.json();
-            const text = data.candidates[0].content.parts[0].text.trim();
-            out.innerText = text;
-        } catch (error) {
-            out.innerText = "שגיאה בחיבור ל-API. נסה שוב.";
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const prompt = `Analyze architectural plans. Return ONLY JSON structure: 
+            { "name": "Building Name", "floors": [ { "lvl": 0, "desc": "info", "safety": "mamad location" } ] }`;
+
+            const parts = await Promise.all(allFiles.map(fileToPart));
+            const result = await model.generateContent([prompt, ...parts]);
+            let text = (await result.response).text().replace(/```json|```/g, "").trim();
+            
+            buildingData = JSON.parse(text);
+            renderModel(buildingData);
+        } catch (e) {
+            console.error(e);
+            alert("שגיאה בניתוח. וודא שהמפתח תקין והתמונות ברורות.");
         } finally {
-            btn.disabled = false;
-            loader.style.display = "none";
+            document.getElementById('loading-overlay').style.display = 'none';
         }
+    };
+
+    function renderModel(data) {
+        floorGroup.clear();
+        const nav = document.getElementById('floor-navigation');
+        const panel = document.getElementById('building-data');
+        nav.innerHTML = '';
+        panel.style.display = 'block';
+        document.getElementById('b-title').innerText = data.name;
+
+        data.floors.forEach((f, i) => {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(10, 2.5, 8),
+                new THREE.MeshPhongMaterial({ color: 0x00bcf2, transparent: true, opacity: 0.5, wireframe: true })
+            );
+            mesh.position.y = i * 3;
+            floorGroup.add(mesh);
+
+            const btn = document.createElement('button');
+            btn.className = 'floor-btn';
+            btn.innerText = `קומה ${f.lvl}`;
+            btn.onclick = () => {
+                floorGroup.children.forEach((m, idx) => { m.visible = (idx === i); m.material.wireframe = false; });
+                document.getElementById('b-details').innerHTML = `<b>תיאור:</b> ${f.desc}<br><b style="color:var(--danger);">ממ"ד:</b> ${f.safety}`;
+            };
+            nav.appendChild(btn);
+        });
     }
 
-    // פונקציות עזר
-    async function copyContent(id) {
-        const el = document.getElementById(id);
-        if (el.innerText === "..." || el.innerText.includes("מייצר")) return;
-        await navigator.clipboard.writeText(el.innerText);
-        const old = el.innerText;
-        el.innerText = "הועתק! ✅";
-        setTimeout(() => el.innerText = old, 800);
-    }
-
-    function shareContent() {
-        const t = cOut.innerText;
-        if (t === "...") return;
-        if (navigator.share) navigator.share({ text: t });
-    }
+    init3D();
 </script>
-
 </body>
 </html>
