@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>חמ"ל נס ציונה V8.0</title>
+    <title>מערכת שו"ב נס ציונה V8.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <script type="importmap"> { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } } </script>
@@ -12,22 +12,22 @@
         #sidebar { width: 360px; background: #161616; padding: 25px; border-left: 1px solid #333; display: flex; flex-direction: column; }
         #main-view { flex-grow: 1; position: relative; }
         .btn { padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; color: white; font-weight: bold; }
-        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; }
-        #loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        #loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .upload-area { border:2px dashed #444; padding:20px; text-align:center; border-radius:10px; cursor:pointer; }
     </style>
 </head>
 <body>
     <div id="loading-overlay">⏳ מנתח נתונים הנדסיים...</div>
     <div id="sidebar">
-        <h1 style="color:var(--accent);">שו"ב נס ציונה</h1>
-        <div style="border:2px dashed #444; padding:20px; text-align:center; border-radius:10px; cursor:pointer;" onclick="document.getElementById('file-input').click()">
+        <h1 style="color:var(--accent); margin:0 0 10px 0;">שו"ב נס ציונה</h1>
+        <div class="upload-area" onclick="document.getElementById('file-input').click()">
             <b>הדבק תמונה (Ctrl+V)</b><br>או לחץ לבחירת קבצים
             <input type="file" id="file-input" multiple hidden>
         </div>
         <div id="file-list" style="font-size:11px; margin-top:10px; color:var(--accent);"></div>
         <button class="btn" style="background:var(--accent);" onclick="runAnalysis()">הפעל ניתוח אוטומטי</button>
         <div id="floor-nav" style="margin-top:20px; display:flex; gap:5px; flex-wrap:wrap;"></div>
-        <div id="debug-console" style="margin-top:auto; font-family:monospace; font-size:11px; color:#666; background:#000; padding:10px;">מוכן לעבודה.</div>
+        <div id="debug-console" style="margin-top:auto; font-family:monospace; font-size:11px; color:#666; background:#000; padding:10px; border:1px solid #333;">סטטוס: מוכן.</div>
     </div>
     <div id="main-view">
         <canvas id="drawing-layer"></canvas>
@@ -38,7 +38,7 @@
     </div>
     <script type="module">
         import { GoogleGenerativeAI } from "@google/generative-ai";
-        const API_KEY = "AIzaSyDXsIvtWq8mXRW179aa-zI6Dj95Ap_rfR8";
+        const API_KEY = "AIzaSyDXsIvtWq8mXRW179aa-zI6Dj95Ap_rfR8"; // המפתח המעודכן שלך
         const genAI = new GoogleGenerativeAI(API_KEY);
         let scene, camera, renderer, floorGroup, fabricCanvas, allFiles = [];
 
@@ -68,13 +68,18 @@
         window.runAnalysis = async () => {
             if (allFiles.length === 0) return alert("אנא הדבק תמונה");
             document.getElementById('loading-overlay').style.display = 'flex';
+            document.getElementById('debug-console').innerText = "> שולח בקשה...";
             try {
                 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                 const parts = await Promise.all(allFiles.map(async f => ({ inlineData: { data: await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result.split(',')[1]); rd.readAsDataURL(f); }), mimeType: f.type } })));
                 const result = await model.generateContent(["Analyze floor plans. Return ONLY JSON: {\"name\": \"Building\", \"floors\": [{\"lvl\": 0, \"desc\": \"info\", \"safety\": \"mamad\"}]}", ...parts]);
                 const data = JSON.parse((await result.response).text().match(/\{[\s\S]*\}/)[0]);
                 renderBuilding(data);
-            } catch (e) { alert("שגיאה: " + e.message); }
+                document.getElementById('debug-console').innerText = "> הצלחה!";
+            } catch (e) { 
+                document.getElementById('debug-console').innerText = "> שגיאה: " + e.message;
+                alert("תקלה בניתוח. וודא שלחצת על SAVE ב-Google Console."); 
+            }
             document.getElementById('loading-overlay').style.display = 'none';
         };
 
@@ -83,7 +88,7 @@
             data.floors.forEach((f, i) => {
                 const m = new THREE.Mesh(new THREE.BoxGeometry(10, 2.5, 8), new THREE.MeshPhongMaterial({ color: 0x00bcf2, transparent: true, opacity: 0.5, wireframe: true }));
                 m.position.y = i * 3; floorGroup.add(m);
-                const b = document.createElement('button'); b.innerText = `קומה ${f.lvl}`; b.onclick = () => { floorGroup.children.forEach((mesh, idx) => { mesh.visible = (idx === i); mesh.material.wireframe = false; }); };
+                const b = document.createElement('button'); b.className = "floor-btn"; b.style.padding="5px"; b.innerText = `קומה ${f.lvl}`; b.onclick = () => { floorGroup.children.forEach((mesh, idx) => { mesh.visible = (idx === i); mesh.material.wireframe = false; }); };
                 document.getElementById('floor-nav').appendChild(b);
             });
         }
