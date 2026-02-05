@@ -10,16 +10,15 @@
       { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } }
     </script>
     <style>
-        :root { --bg: #0f0f0f; --panel: #1a1a1a; --accent: #00bcf2; --danger: #ff4444; }
+        :root { --bg: #0f0f0f; --panel: #1a1a1a; --accent: #00bcf2; --danger: #ff4444; --success: #28a745; }
         body { margin: 0; background: var(--bg); color: #e0e0e0; font-family: 'Segoe UI', system-ui; display: flex; height: 100vh; overflow: hidden; }
         #sidebar { width: 360px; background: var(--panel); border-left: 2px solid #333; display: flex; flex-direction: column; padding: 25px; box-shadow: 5px 0 15px rgba(0,0,0,0.5); z-index: 100; }
         #main-view { flex-grow: 1; position: relative; }
         .upload-area { border: 2px dashed #444; padding: 30px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; background: #222; }
         .upload-area:hover { border-color: var(--accent); background: #2a2a2a; }
         #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; }
-        .btn { padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 10px; transition: 0.2s; }
-        .btn-primary { background: var(--accent); color: white; }
-        .btn-primary:hover { background: #0098c7; }
+        .btn { padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 10px; transition: 0.2s; color:white; }
+        .btn-primary { background: var(--accent); } .btn-primary:hover { background: #0098c7; }
         #floor-navigation { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
         .floor-btn { background: #333; color: white; border: 1px solid #444; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
         .floor-btn:hover { background: #444; }
@@ -62,6 +61,7 @@
     <div style="position:absolute; bottom:25px; right:25px; z-index:20; display:flex; flex-direction:column; gap:10px; width:120px;">
         <button class="btn" style="background:var(--danger);" onclick="toggleDrawMode()">✏️ צייר</button>
         <button class="btn" style="background:#444;" onclick="clearCanvas()">🗑️ נקה</button>
+        <button class="btn" style="background:var(--success);" onclick="saveScreenshot()">📷 שמור</button>
     </div>
 </div>
 
@@ -78,7 +78,8 @@
     function init3D() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 360) / window.innerHeight, 0.1, 1000);
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        // תיקון חשוב: הוספת preserveDrawingBuffer: true כדי לאפשר שמירת תמונה
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
         renderer.setSize(window.innerWidth - 360, window.innerHeight);
         document.getElementById('main-view').appendChild(renderer.domElement);
         
@@ -109,10 +110,38 @@
 
     window.toggleDrawMode = () => {
         canvas.isDrawingMode = !canvas.isDrawingMode;
-        alert(canvas.isDrawingMode ? "מצב ציור פעיל - סמן על המסך" : "מצב תצוגה פעיל");
     };
 
     window.clearCanvas = () => canvas.clear();
+
+    // --- פונקציית שמירת מסך חדשה ---
+    window.saveScreenshot = () => {
+        // 1. יצירת קנבס זמני למיזוג השכבות
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = renderer.domElement.width;
+        tempCanvas.height = renderer.domElement.height;
+        const ctx = tempCanvas.getContext('2d');
+
+        // 2. המרת שכבת התלת-ממד לתמונה
+        const img3D = new Image();
+        img3D.src = renderer.domElement.toDataURL('image/png');
+        img3D.onload = () => {
+            ctx.drawImage(img3D, 0, 0); // ציור התלת-ממד
+
+            // 3. המרת שכבת הציור לתמונה וציורה מעל
+            const imgDraw = new Image();
+            imgDraw.src = canvas.toDataURL({ format: 'png' });
+            imgDraw.onload = () => {
+                ctx.drawImage(imgDraw, 0, 0); // ציור הסימונים
+
+                // 4. הורדת התמונה המאוחדת
+                const link = document.createElement('a');
+                link.download = 'ness-ziona-emergency-plan.png';
+                link.href = tempCanvas.toDataURL('image/png');
+                link.click();
+            };
+        };
+    };
 
     // --- הליבה: ניתוח ה-AI ---
     async function fileToGenerativePart(file) {
@@ -140,7 +169,7 @@
             const imageParts = await Promise.all([...files].map(fileToGenerativePart));
             const result = await model.generateContent([prompt, ...imageParts]);
             const response = await result.response;
-            const text = response.text().replace(/```json|```/g, "");
+            const text = response.text().replace(/```json|```/g, "").trim();
             
             buildingData = JSON.parse(text);
             renderModel(buildingData);
