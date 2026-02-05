@@ -1,143 +1,395 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת חירום נס ציונה - V8.0</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <script type="importmap"> { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } } </script>
-    <style>
-        :root { --bg: #0d0d0d; --panel: #1a1a1a; --accent: #00bcf2; --danger: #ff4444; }
-        body { margin: 0; background: var(--bg); color: #e0e0e0; font-family: system-ui; display: flex; height: 100vh; overflow: hidden; }
-        #sidebar { width: 380px; background: var(--panel); border-left: 2px solid #333; display: flex; flex-direction: column; position: relative; z-index: 100; }
-        #main-view { flex-grow: 1; position: relative; background: #000; }
-        
-        /* שורת הכתיבה/העלאה החדשה */
-        #input-container { padding: 20px; background: #222; border-top: 1px solid #333; }
-        .input-wrapper { display: flex; align-items: center; background: #333; border-radius: 25px; padding: 5px 15px; border: 1px solid #444; }
-        .input-wrapper:focus-within { border-color: var(--accent); }
-        #fake-input { flex-grow: 1; background: transparent; border: none; color: white; padding: 10px; outline: none; font-size: 14px; }
-        .action-btn { background: #444; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; }
-        .action-btn:hover { background: var(--accent); }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>מערכת חירום נס ציונה - V8.1 (Fixed)</title>
 
-        #file-display-list { padding: 15px; flex-grow: 1; overflow-y: auto; font-size: 13px; }
-        .file-item { display: flex; justify-content: space-between; background: #2a2a2a; padding: 8px; border-radius: 5px; margin-bottom: 5px; border-right: 3px solid var(--accent); }
-        
-        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; }
-        .toolbar { position: absolute; top: 20px; left: 20px; z-index: 20; display: flex; gap: 10px; }
-        .tool-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #444; padding: 10px 15px; border-radius: 8px; cursor: pointer; }
-        .tool-btn:hover { background: var(--accent); }
-        
-        #loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 10px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+
+  <!-- SDK עדכני יותר -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://esm.run/@google/genai"
+      }
+    }
+  </script>
+
+  <style>
+    :root { --bg:#0d0d0d; --panel:#1a1a1a; --accent:#00bcf2; --danger:#ff4444; }
+    body { margin:0; background:var(--bg); color:#e0e0e0; font-family:system-ui; display:flex; height:100vh; overflow:hidden; }
+    #sidebar { width:380px; background:var(--panel); border-left:2px solid #333; display:flex; flex-direction:column; position:relative; z-index:100; }
+    #main-view { flex-grow:1; position:relative; background:#000; }
+
+    #input-container { padding:20px; background:#222; border-top:1px solid #333; }
+    .input-wrapper { display:flex; align-items:center; background:#333; border-radius:25px; padding:5px 15px; border:1px solid #444; }
+    .input-wrapper:focus-within { border-color:var(--accent); }
+    #fake-input { flex-grow:1; background:transparent; border:none; color:white; padding:10px; outline:none; font-size:14px; }
+    .action-btn { background:#444; color:white; border:none; border-radius:50%; width:35px; height:35px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:20px; }
+    .action-btn:hover { background:var(--accent); }
+
+    #file-display-list { padding:15px; flex-grow:1; overflow-y:auto; font-size:13px; }
+    .file-item { display:flex; justify-content:space-between; background:#2a2a2a; padding:8px; border-radius:5px; margin-bottom:5px; border-right:3px solid var(--accent); }
+    .muted { color:#777; font-size:12px; }
+
+    #drawing-layer { position:absolute; top:0; left:0; z-index:10; }
+    .toolbar { position:absolute; top:20px; left:20px; z-index:20; display:flex; gap:10px; }
+    .tool-btn { background:rgba(0,0,0,0.7); color:white; border:1px solid #444; padding:10px 15px; border-radius:8px; cursor:pointer; }
+    .tool-btn:hover { background:var(--accent); }
+
+    #loading-overlay { position:absolute; inset:0; background:rgba(0,0,0,0.9); display:none; flex-direction:column; align-items:center; justify-content:center; z-index:1000; }
+    .spinner { border:4px solid rgba(255,255,255,0.1); border-left-color:var(--accent); border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin-bottom:10px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
 </head>
-<body>
 
-<div id="loading-overlay">
+<body>
+  <div id="loading-overlay">
     <div class="spinner"></div>
     <div id="status-text">מנתח גרמושקה...</div>
-</div>
+    <div class="muted" id="status-sub"></div>
+  </div>
 
-<div id="sidebar">
-    <div style="padding: 25px 25px 10px 25px;">
-        <h1 style="color:var(--accent); margin:0; font-size:22px;">נס ציונה - שו"ב</h1>
-        <p style="font-size:12px; color:#666;">גרסה 8.0 - תחנת שירות אחת</p>
+  <div id="sidebar">
+    <div style="padding:25px 25px 10px 25px;">
+      <h1 style="color:var(--accent); margin:0; font-size:22px;">נס ציונה - שו״ב</h1>
+      <p style="font-size:12px; color:#666; margin:6px 0 0;">גרסה 8.1 - קוד מתוקן</p>
+      <p class="muted" style="margin:8px 0 0;">טיפ: להריץ דרך localhost (לא file://) כדי להימנע מחסימות.</p>
     </div>
 
     <div id="file-display-list">
-        <p id="empty-msg" style="color:#555; text-align:center; margin-top:50px;">העלה או הדבק תמונות של הקומות...</p>
+      <p id="empty-msg" style="color:#555; text-align:center; margin-top:50px;">העלה או הדבק תמונות של הקומות...</p>
     </div>
 
-    <div id="floor-nav" style="padding: 0 20px 10px 20px; display: flex; gap: 5px; flex-wrap: wrap;"></div>
+    <div id="floor-nav" style="padding:0 20px 10px 20px; display:flex; gap:5px; flex-wrap:wrap;"></div>
 
     <div id="input-container">
-        <div class="input-wrapper">
-            <button class="action-btn" onclick="document.getElementById('file-input').click()">+</button>
-            <input type="text" id="fake-input" placeholder="הדבק כאן או לחץ על הפלוס..." onpaste="handlePaste(event)">
-            <input type="file" id="file-input" multiple hidden onchange="handleFileSelect(event)">
-        </div>
-        <button class="btn" style="width:100%; margin-top:10px; background:var(--accent); border:none; padding:12px; border-radius:25px; color:white; font-weight:bold; cursor:pointer;" onclick="runAnalysis()">הפעל ניתוח הנדסי</button>
+      <div class="input-wrapper">
+        <button class="action-btn" id="plusBtn" title="הוספת קובץ">+</button>
+        <input type="text" id="fake-input" placeholder="הדבק כאן תמונה (Ctrl+V) או לחץ על הפלוס..." />
+        <input type="file" id="file-input" multiple hidden accept="image/*" />
+      </div>
+      <button id="analyzeBtn"
+        style="width:100%; margin-top:10px; background:var(--accent); border:none; padding:12px; border-radius:25px; color:white; font-weight:bold; cursor:pointer;">
+        הפעל ניתוח הנדסי
+      </button>
+      <p class="muted" style="margin:10px 0 0;">
+        עובד עם תמונות בלבד (PNG/JPG). PDF דורש פירוק לעמודים כתמונות.
+      </p>
     </div>
-</div>
+  </div>
 
-<div id="main-view">
+  <div id="main-view">
     <canvas id="drawing-layer"></canvas>
     <div class="toolbar">
-        <button class="tool-btn" onclick="toggleDraw()">✏️ צייר</button>
-        <button class="tool-btn" onclick="clearCanvas()">🗑️ נקה</button>
-        <button class="tool-btn" style="background:var(--danger);" onclick="saveResult()">📷 שמור</button>
+      <button class="tool-btn" id="drawBtn">✏️ צייר</button>
+      <button class="tool-btn" id="clearBtn">🗑️ נקה</button>
+      <button class="tool-btn" id="saveBtn" style="background:var(--danger);">📷 שמור</button>
     </div>
-</div>
+  </div>
 
-<script type="module">
-    import { GoogleGenerativeAI } from "@google/generative-ai";
-    const API_KEY = "AIzaSyDXsIvtWq8mXRW179aa-zI6Dj95Ap_rfR8";
-    const genAI = new GoogleGenerativeAI(API_KEY);
+  <script type="module">
+    import { GoogleGenAI } from "@google/genai";
 
-    let scene, camera, renderer, floorGroup, fabricCanvas, allFiles = [];
+    // ⚠️ אל תשאיר את המפתח כאן בפרודקשן.
+    const API_KEY = "YOUR_API_KEY_HERE";
 
-    function init() {
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 380) / window.innerHeight, 0.1, 1000);
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-        renderer.setSize(window.innerWidth - 380, window.innerHeight);
-        document.getElementById('main-view').appendChild(renderer.domElement);
-        
-        floorGroup = new THREE.Group();
-        scene.add(floorGroup, new THREE.AmbientLight(0xffffff, 1));
-        camera.position.set(10, 10, 10); camera.lookAt(0, 3, 0);
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-        fabricCanvas = new fabric.Canvas('drawing-layer', { width: window.innerWidth - 380, height: window.innerHeight, isDrawingMode: false });
-        fabricCanvas.freeDrawingBrush.color = "red"; fabricCanvas.freeDrawingBrush.width = 5;
-        animate();
+    let scene, camera, renderer, floorGroup, fabricCanvas;
+    let allFiles = [];
+
+    const sidebarWidth = 380;
+
+    function setStatus(main, sub = "") {
+      document.getElementById("status-text").innerText = main;
+      document.getElementById("status-sub").innerText = sub;
     }
-    function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
 
-    // --- ניהול העלאות ---
-    window.handleFileSelect = (e) => { addFiles(Array.from(e.target.files)); };
-    window.handlePaste = (e) => {
-        const items = e.clipboardData.items;
-        for (let item of items) { if (item.type.includes("image")) addFiles([item.getAsFile()]); }
-    };
+    function showLoading(on) {
+      document.getElementById("loading-overlay").style.display = on ? "flex" : "none";
+    }
+
+    function init3D() {
+      scene = new THREE.Scene();
+
+      const w = window.innerWidth - sidebarWidth;
+      const h = window.innerHeight;
+
+      camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
+      camera.position.set(12, 12, 12);
+      camera.lookAt(0, 3, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+      document.getElementById("main-view").appendChild(renderer.domElement);
+
+      floorGroup = new THREE.Group();
+      scene.add(floorGroup);
+
+      // תאורה אמיתית (Phong בלי תאורה נראה “שחור” ואז אנשים חושבים שזה לא עובד)
+      const ambient = new THREE.AmbientLight(0xffffff, 0.9);
+      scene.add(ambient);
+
+      const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+      dir.position.set(10, 20, 10);
+      scene.add(dir);
+
+      animate();
+    }
+
+    function initFabric() {
+      const w = window.innerWidth - sidebarWidth;
+      const h = window.innerHeight;
+
+      fabricCanvas = new fabric.Canvas("drawing-layer", {
+        width: w,
+        height: h,
+        isDrawingMode: false,
+        selection: true
+      });
+      fabricCanvas.freeDrawingBrush.color = "red";
+      fabricCanvas.freeDrawingBrush.width = 5;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+
+    function onResize() {
+      const w = window.innerWidth - sidebarWidth;
+      const h = window.innerHeight;
+
+      // three
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+
+      // fabric
+      fabricCanvas.setWidth(w);
+      fabricCanvas.setHeight(h);
+      fabricCanvas.requestRenderAll();
+    }
+
+    window.addEventListener("resize", onResize);
+
+    // ---------- קבצים ----------
+    function refreshFileList() {
+      const list = document.getElementById("file-display-list");
+      const empty = document.getElementById("empty-msg");
+
+      if (allFiles.length === 0) {
+        empty.style.display = "block";
+        list.innerHTML = `<p id="empty-msg" style="color:#555; text-align:center; margin-top:50px;">העלה או הדבק תמונות של הקומות...</p>`;
+        return;
+      }
+
+      empty?.remove();
+
+      list.innerHTML = allFiles.map((f) => `
+        <div class="file-item">
+          <span>✅ ${escapeHtml(f.name || "תמונה שהודבקה")}</span>
+          <span class="muted">${escapeHtml(f.type || "")}</span>
+        </div>
+      `).join("");
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
     function addFiles(files) {
-        allFiles = [...allFiles, ...files];
-        document.getElementById('empty-msg').style.display = 'none';
-        const list = document.getElementById('file-display-list');
-        list.innerHTML = allFiles.map((f, i) => `<div class="file-item"><span>✅ ${f.name || 'תמונה שהודבקה'}</span></div>`).join('');
+      // תמונות בלבד
+      const imgs = files.filter(f => (f && typeof f.type === "string" && f.type.startsWith("image/")));
+      if (imgs.length === 0) return;
+
+      allFiles = [...allFiles, ...imgs];
+      refreshFileList();
     }
 
-    window.runAnalysis = async () => {
-        if (allFiles.length === 0) return alert("אנא הוסף תמונה.");
-        document.getElementById('loading-overlay').style.display = 'flex';
-        try {
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-            const prompt = `Return ONLY JSON: {"name": "Building", "floors": [{"lvl": 0, "desc": "info", "safety": "mamad"}]}`;
-            const parts = await Promise.all(allFiles.map(async f => ({ inlineData: { data: await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result.split(',')[1]); rd.readAsDataURL(f); }), mimeType: f.type } })));
-            const result = await model.generateContent([prompt, ...parts]);
-            const text = (await result.response).text().match(/\{[\s\S]*\}/)[0];
-            render(JSON.parse(text));
-        } catch (e) { alert("שגיאה בניתוח. וודא שהמפתח ב-Cloud נשמר."); }
-        finally { document.getElementById('loading-overlay').style.display = 'none'; }
-    };
+    const fileInput = document.getElementById("file-input");
+    document.getElementById("plusBtn").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => addFiles(Array.from(e.target.files || [])));
 
-    function render(data) {
-        floorGroup.clear(); const nav = document.getElementById('floor-nav'); nav.innerHTML = '';
-        data.floors.forEach((f, i) => {
-            const m = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 6), new THREE.MeshPhongMaterial({ color: 0x00bcf2, transparent: true, opacity: 0.5, wireframe: true }));
-            m.position.y = i * 2.5; floorGroup.add(m);
-            const b = document.createElement('button'); b.innerText = `קומה ${f.lvl}`; b.className = 'tool-btn';
-            b.onclick = () => { floorGroup.children.forEach((mesh, idx) => { mesh.visible = (idx === i); mesh.material.wireframe = false; }); alert(`קומה ${f.lvl}: ${f.desc}\nממ"ד: ${f.safety}`); };
-            nav.appendChild(b);
+    // הדבקה: עדיף להאזין גלובלית, לא רק בתוך input, אחרת חצי מההדבקות “נעלמות”
+    window.addEventListener("paste", (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const pasted = [];
+      for (const item of items) {
+        if (item.type && item.type.startsWith("image/")) {
+          const f = item.getAsFile();
+          if (f) pasted.push(f);
+        }
+      }
+      if (pasted.length) addFiles(pasted);
+    });
+
+    // ---------- Gemini ----------
+    async function fileToBase64(file) {
+      return await new Promise((resolve, reject) => {
+        const rd = new FileReader();
+        rd.onerror = () => reject(new Error("FileReader failed"));
+        rd.onload = () => {
+          const res = String(rd.result || "");
+          const base64 = res.split(",")[1];
+          if (!base64) reject(new Error("No base64 data"));
+          resolve(base64);
+        };
+        rd.readAsDataURL(file);
+      });
+    }
+
+    function safeJsonParse(text) {
+      // אם המודל בכל זאת החזיר טקסט עם עטיפה, ננסה להציל את זה
+      try { return JSON.parse(text); } catch {}
+      const m = text.match(/\{[\s\S]*\}/);
+      if (m) return JSON.parse(m[0]);
+      throw new Error("JSON parse failed");
+    }
+
+    async function runAnalysis() {
+      if (!API_KEY || API_KEY.includes("YOUR_API_KEY_HERE")) {
+        alert("שמת את המפתח בתור YOUR_API_KEY_HERE. שים מפתח אמיתי כדי להריץ.");
+        return;
+      }
+      if (allFiles.length === 0) {
+        alert("אנא הוסף תמונה.");
+        return;
+      }
+
+      showLoading(true);
+      setStatus("מנתח...", "מעלה תמונות ומבקש פלט JSON");
+
+      try {
+        const parts = [];
+        for (const f of allFiles) {
+          const data = await fileToBase64(f);
+          parts.push({ inlineData: { data, mimeType: f.type } });
+        }
+
+        const prompt =
+          `אתה מחזיר אך ורק JSON חוקי, בלי טקסט נוסף.
+          סכימה:
+          {
+            "name": "Building",
+            "floors": [
+              {"lvl": 0, "desc": "info", "safety": "mamad|none|unknown"}
+            ]
+          }
+          אם אין ודאות לגבי קומות/ממ"ד, כתוב "unknown".`;
+
+        // מודל: בחרתי משפחה נפוצה. אם בחשבון שלך זה שונה, תחליף לשם מודל זמין.
+        const result = await ai.models.generateContent({
+          model: "gemini-2.0-flash",
+          contents: [{ role: "user", parts: [{ text: prompt }, ...parts] }],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
         });
+
+        // ב-SDK הזה לרוב זה טקסט של JSON נקי
+        const text = result.text ?? (result.candidates?.[0]?.content?.parts?.[0]?.text ?? "");
+        if (!text) throw new Error("Empty model response");
+
+        const data = safeJsonParse(text);
+        renderFloors(data);
+
+      } catch (e) {
+        console.error(e);
+        alert("שגיאה בניתוח: " + (e?.message || e));
+      } finally {
+        showLoading(false);
+      }
     }
 
-    window.toggleDraw = () => fabricCanvas.isDrawingMode = !fabricCanvas.isDrawingMode;
-    window.clearCanvas = () => fabricCanvas.clear();
-    window.saveResult = () => { const t = document.createElement('canvas'); t.width = renderer.domElement.width; t.height = renderer.domElement.height; const ctx = t.getContext('2d'); ctx.drawImage(renderer.domElement, 0, 0); const img = new Image(); img.src = fabricCanvas.toDataURL(); img.onload = () => { ctx.drawImage(img, 0, 0); const a = document.createElement('a'); a.download = 'plan.png'; a.href = t.toDataURL(); a.click(); }; };
-    init();
-</script>
+    document.getElementById("analyzeBtn").addEventListener("click", runAnalysis);
+
+    // ---------- רנדר קומות ----------
+    function renderFloors(data) {
+      if (!data || !Array.isArray(data.floors)) {
+        throw new Error("JSON אינו במבנה הנדרש (חסר floors).");
+      }
+
+      floorGroup.clear();
+      const nav = document.getElementById("floor-nav");
+      nav.innerHTML = "";
+
+      // ליצור “ערימת קומות”
+      data.floors.forEach((f, i) => {
+        const geo = new THREE.BoxGeometry(8, 2, 6);
+        const mat = new THREE.MeshPhongMaterial({
+          color: 0x00bcf2,
+          transparent: true,
+          opacity: 0.45,
+          wireframe: true
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.y = i * 2.6;
+        floorGroup.add(mesh);
+
+        const b = document.createElement("button");
+        b.className = "tool-btn";
+        b.innerText = `קומה ${f?.lvl ?? i}`;
+        b.onclick = () => {
+          floorGroup.children.forEach((m, idx) => {
+            m.visible = (idx === i);
+            if (m.material) m.material.wireframe = false;
+          });
+          alert(`קומה ${f?.lvl ?? i}:\n${f?.desc ?? ""}\nממ"ד: ${f?.safety ?? "unknown"}`);
+        };
+        nav.appendChild(b);
+      });
+
+      // להציג רק את הראשונה כברירת מחדל
+      floorGroup.children.forEach((m, idx) => (m.visible = idx === 0));
+      if (floorGroup.children[0]?.material) floorGroup.children[0].material.wireframe = false;
+    }
+
+    // ---------- ציור / שמירה ----------
+    document.getElementById("drawBtn").addEventListener("click", () => {
+      fabricCanvas.isDrawingMode = !fabricCanvas.isDrawingMode;
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      fabricCanvas.clear();
+      fabricCanvas.requestRenderAll();
+    });
+
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      const t = document.createElement("canvas");
+      t.width = renderer.domElement.width;
+      t.height = renderer.domElement.height;
+
+      const ctx = t.getContext("2d");
+      ctx.drawImage(renderer.domElement, 0, 0);
+
+      const img = new Image();
+      img.src = fabricCanvas.toDataURL({ format: "png" });
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0);
+        const a = document.createElement("a");
+        a.download = "plan.png";
+        a.href = t.toDataURL("image/png");
+        a.click();
+      };
+    });
+
+    // init
+    init3D();
+    initFabric();
+    refreshFileList();
+  </script>
 </body>
 </html>
