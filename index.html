@@ -2,34 +2,33 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>חמ"ל נס ציונה V15.0</title>
+    <title>שו"ב נס ציונה V16.0 - גרסה סופית</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <script type="importmap"> { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } } </script>
     <style>
         :root { --accent: #00bcf2; --danger: #ff4444; --success: #28a745; }
         body { margin: 0; background: #0a0a0a; color: white; font-family: system-ui; display: flex; height: 100vh; overflow: hidden; }
-        #sidebar { width: 360px; background: #161616; padding: 25px; border-left: 1px solid #333; display: flex; flex-direction: column; }
-        #main-view { flex-grow: 1; position: relative; }
+        #sidebar { width: 360px; background: #161616; padding: 25px; border-left: 2px solid #333; display: flex; flex-direction: column; }
+        #main-view { flex-grow: 1; position: relative; background: #000; }
         .upload-zone { border: 2px dashed var(--accent); padding: 30px; text-align: center; border-radius: 12px; cursor: pointer; background: #222; margin-bottom: 20px; }
-        .file-tag { background: #333; padding: 8px; border-radius: 6px; margin-bottom: 5px; font-size: 12px; border-right: 4px solid var(--success); }
         .btn { padding: 14px; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; color: white; font-weight: bold; }
         #loading { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; }
+        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; }
     </style>
 </head>
 <body>
-    <div id="loading">⏳ מנתח נתונים הנדסיים...</div>
+    <div id="loading">⏳ צוות המומחים מנתח את המבנה...</div>
     <div id="sidebar">
         <h1 style="color:var(--accent); margin:0 0 10px 0;">שו"ב נס ציונה</h1>
         <div class="upload-zone" onclick="document.getElementById('file-input').click()">
-            <b>📂 לחץ להעלאה / PDF</b><br>או הדבק תמונה (Ctrl+V)
+            <b>📂 לחץ להעלאת תמונה/PDF</b><br>או הדבק ישירות (Ctrl+V)
             <input type="file" id="file-input" multiple hidden>
         </div>
-        <div id="file-list"></div>
+        <div id="file-list" style="font-size:12px; color:var(--accent); margin-bottom:10px;"></div>
         <button class="btn" style="background:var(--accent);" onclick="runAnalysis()">הפעל ניתוח רב-קומתי</button>
         <div id="floor-nav" style="margin-top:20px; display:flex; gap:5px; flex-wrap:wrap;"></div>
-        <div id="status" style="margin-top:auto; font-family:monospace; font-size:11px; color:#555;">סטטוס: מוכן.</div>
+        <div id="debug" style="margin-top:auto; font-family:monospace; font-size:11px; color:#555; background:#000; padding:10px;">סטטוס: מוכן.</div>
     </div>
     <div id="main-view">
         <canvas id="drawing-layer"></canvas>
@@ -60,7 +59,7 @@
         function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
         
         const updateUI = () => {
-            document.getElementById('file-list').innerHTML = files.map(f => `<div class="file-tag">📄 ${f.name || 'Pasted image'}</div>`).join('');
+            document.getElementById('file-list').innerText = `נטענו ${files.length} קבצים.`;
         };
 
         window.addEventListener('paste', e => {
@@ -81,11 +80,8 @@
             try {
                 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                 const parts = await Promise.all(files.map(async f => ({ inlineData: { data: await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result.split(',')[1]); rd.readAsDataURL(f); }), mimeType: f.type } })));
-                const result = await model.generateContent(["Identify floors in plan. Return JSON: {\"floors\": [{\"lvl\": 0, \"info\": \"...\"}]}", ...parts]);
-                const response = await result.response;
-                const text = response.text();
-                const data = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
-                
+                const result = await model.generateContent(["Analyze plans. Return JSON: {\"floors\": [{\"lvl\": 0, \"info\": \"...\"}]}", ...parts]);
+                const data = JSON.parse((await result.response).text().match(/\{[\s\S]*\}/)[0]);
                 floorGroup.clear(); document.getElementById('floor-nav').innerHTML = '';
                 data.floors.forEach((f, i) => {
                     const m = new THREE.Mesh(new THREE.BoxGeometry(10, 2, 8), new THREE.MeshPhongMaterial({ color: 0x00bcf2, transparent: true, opacity: 0.5, wireframe: true }));
@@ -93,7 +89,8 @@
                     const b = document.createElement('button'); b.style.cssText = "background:#333; color:white; border:1px solid #444; padding:8px; border-radius:6px; cursor:pointer;"; b.innerText = `קומה ${f.lvl}`; b.onclick = () => { floorGroup.children.forEach((mesh, idx) => { mesh.visible = (idx === i); mesh.material.wireframe = false; }); };
                     document.getElementById('floor-nav').appendChild(b);
                 });
-            } catch (e) { document.getElementById('status').innerText = "שגיאה: " + e.message; }
+                document.getElementById('debug').innerText = "> ניתוח הושלם בהצלחה.";
+            } catch (e) { document.getElementById('debug').innerText = "שגיאה: " + e.message; }
             document.getElementById('loading').style.display = 'none';
         };
 
