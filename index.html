@@ -3,132 +3,157 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת שליטה קומתית - נס ציונה</title>
+    <title>חמ"ל הנדסי נס ציונה - תחנת שירות מאוחדת</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <style>
-        body { margin: 0; background: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
-        #sidebar { width: 320px; background: #1e1e1e; padding: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px; }
-        #viewer-container { flex-grow: 1; position: relative; background: radial-gradient(circle, #222 0%, #000 100%); }
-        canvas#drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; touch-action: none; }
-        .floor-btn { padding: 10px; background: #333; border: 1px solid #444; color: white; cursor: pointer; border-radius: 4px; transition: 0.3s; }
-        .floor-btn.active { background: #0078d4; border-color: #00bcf2; }
-        .controls { position: absolute; top: 20px; right: 20px; z-index: 20; display: flex; gap: 10px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px; }
-        button.tool-btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        #status-tag { padding: 5px 10px; border-radius: 20px; font-size: 12px; display: inline-block; background: #2d2d2d; color: #00ff00; }
+        :root { --bg: #121212; --panel: #1e1e1e; --accent: #00bcf2; }
+        body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; }
+        #sidebar { width: 350px; background: var(--panel); border-left: 2px solid #333; display: flex; flex-direction: column; padding: 20px; z-index: 100; }
+        #main-view { flex-grow: 1; position: relative; }
+        .upload-area { border: 2px dashed var(--accent); padding: 20px; text-align: center; border-radius: 10px; cursor: pointer; margin-bottom: 20px; }
+        #drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; }
+        .btn { padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+        .btn-primary { background: var(--accent); color: white; }
+        .floor-nav { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 15px; }
+        .floor-btn { background: #333; color: white; border: 1px solid #444; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
+        #loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 1000; }
     </style>
 </head>
 <body>
 
+<div id="loading-overlay">⏳ מנתח גרמושקות ומייצר מודל...</div>
+
 <div id="sidebar">
-    <h2 style="margin:0; color:#00bcf2;">נס ציונה - מבנה חירום</h2>
-    <div id="status-tag">מצב: מודל פעיל</div>
-    <div id="floor-navigation">
-        <p><b>בחר תצוגה:</b></p>
-        <button class="floor-btn active" onclick="showAll()">🏢 בניין מלא</button>
-        <div id="floor-list" style="display:flex; flex-direction:column; gap:5px; margin-top:10px;"></div>
+    <h2 style="color:var(--accent); margin-top:0;">חמ"ל נס ציונה</h2>
+    
+    <div class="upload-area" onclick="document.getElementById('file-input').click()">
+        📁 העלה צילומי גרמושקה (ניתן לבחור כמה קומות)
+        <input type="file" id="file-input" multiple hidden onchange="handleFiles(this.files)">
     </div>
-    <hr style="width:100%; border:0; border-top:1px solid #333;">
-    <div id="data-panel">
-        <p>ממתין לנתוני קומה...</p>
+
+    <div id="file-list" style="font-size: 12px; color: #aaa;"></div>
+
+    <button class="btn btn-primary" onclick="processWithAI()">בצע ניתוח וייצור מודל</button>
+
+    <div id="floor-navigation" class="floor-nav"></div>
+
+    <hr style="width:100%; border:0; border-top:1px solid #333; margin: 20px 0;">
+    
+    <div id="building-data">
+        <p>ממתין להעלאת תכניות...</p>
     </div>
 </div>
 
-<div id="viewer-container">
+<div id="main-view">
     <canvas id="drawing-layer"></canvas>
-    <div class="controls">
-        <button class="tool-btn" style="background:#ff4444;" onclick="setDrawMode()">✏️ צייר</button>
-        <button class="tool-btn" style="background:#555;" onclick="clearCanvas()">🗑️ נקה</button>
-        <button class="tool-btn" style="background:#44ff44; color:black;" onclick="captureScreen()">💾 שמור תמונה</button>
+    <div style="position:absolute; bottom:20px; right:20px; z-index:20; display:flex; gap:10px;">
+        <button class="btn" style="background:red;" onclick="toggleDraw()">✏️ צייר/בטל</button>
+        <button class="btn" style="background:gray;" onclick="clearCanvas()">🗑️ נקה</button>
     </div>
 </div>
 
 <script>
-    let buildingData = { floors: [] };
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 320) / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth - 320, window.innerHeight);
-    document.getElementById('viewer-container').appendChild(renderer.domElement);
+    let scene, camera, renderer, floorGroup;
+    let canvas; // Fabric.js
+    let currentData = null;
 
-    const light = new THREE.AmbientLight(0x404040, 2); 
-    const dLight = new THREE.DirectionalLight(0xffffff, 1);
-    dLight.position.set(5, 10, 7.5);
-    scene.add(light, dLight);
-
-    const floorGroup = new THREE.Group();
-    scene.add(floorGroup);
-
-    // --- עיבוד נתונים מה-URL ---
-    const urlParams = new URLSearchParams(window.location.search);
-    const rawData = urlParams.get('data');
-    if (rawData) {
-        try {
-            buildingData = JSON.parse(atob(rawData)); // פענוח Base64
-            initSystem();
-        } catch(e) { console.error("Data error", e); }
+    // --- אתחול מנוע 3D ---
+    function init3D() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 350) / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth - 350, window.innerHeight);
+        document.getElementById('main-view').appendChild(renderer.domElement);
+        
+        floorGroup = new THREE.Group();
+        scene.add(floorGroup);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        
+        camera.position.set(15, 15, 15);
+        camera.lookAt(0, 5, 0);
+        animate();
     }
-
-    function initSystem() {
-        const list = document.getElementById('floor-list');
-        buildingData.floors.forEach((f, i) => {
-            const btn = document.createElement('button');
-            btn.className = 'floor-btn';
-            btn.innerText = `קומה ${f.level}`;
-            btn.onclick = () => showFloor(i);
-            list.appendChild(btn);
-        });
-        showAll();
-    }
-
-    function showFloor(index) {
-        floorGroup.children.forEach((child, i) => {
-            child.visible = (i === index);
-            child.material.wireframe = false;
-        });
-        updateSidebar(index);
-    }
-
-    function showAll() {
-        floorGroup.children.forEach(child => {
-            child.visible = true;
-            child.material.wireframe = true;
-        });
-        document.getElementById('data-panel').innerHTML = "<p>מציג מבנה מלא (שקוף)</p>";
-    }
-
-    function updateSidebar(index) {
-        const f = buildingData.floors[index];
-        document.getElementById('data-panel').innerHTML = `
-            <h3>קומה ${f.level}</h3>
-            <p><b>מידע:</b> ${f.info}</p>
-            <p style="color:#ff4444;"><b>מיקום ממ"ד:</b> ${f.mamad}</p>
-        `;
-    }
-
-    // יצירת הקומות (סימולציה לפי נתונים)
-    buildingData.floors.forEach((f, i) => {
-        const geo = new THREE.BoxGeometry(10, 2.8, 8);
-        const mat = new THREE.MeshPhongMaterial({ color: 0x0078d4, transparent: true, opacity: 0.7 });
-        const floor = new THREE.Mesh(geo, mat);
-        floor.position.y = i * 3;
-        floorGroup.add(floor);
-    });
-
-    camera.position.set(12, 12, 12);
-    camera.lookAt(0, 5, 0);
 
     function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
-    animate();
 
-    // שכבת הציור (Fabric.js)
-    const canvas = new fabric.Canvas('drawing-layer', {
-        width: window.innerWidth - 320,
+    // --- אתחול שכבת ציור ---
+    canvas = new fabric.Canvas('drawing-layer', {
+        width: window.innerWidth - 350,
         height: window.innerHeight,
         isDrawingMode: false
     });
-    function setDrawMode() { canvas.isDrawingMode = !canvas.isDrawingMode; }
+    canvas.freeDrawingBrush.color = "red";
+    canvas.freeDrawingBrush.width = 5;
+
+    function toggleDraw() { canvas.isDrawingMode = !canvas.isDrawingMode; }
     function clearCanvas() { canvas.clear(); }
+
+    // --- טיפול בקבצים ---
+    function handleFiles(files) {
+        const list = document.getElementById('file-list');
+        list.innerHTML = Array.from(files).map(f => `<div>✅ ${f.name}</div>`).join('');
+    }
+
+    // --- חיבור ל-AI (הסימולציה של תחנת השירות) ---
+    async function processWithAI() {
+        document.getElementById('loading-overlay').style.display = 'flex';
+        
+        // כאן תבוא הפנייה ל-API. לצורך הדגמה, המערכת מייצרת את המודל המאוחד:
+        setTimeout(() => {
+            const mockData = {
+                building: "מבנה מגורים רחוב ויצמן",
+                floors: [
+                    { level: 0, info: "קומת כניסה, ארון חשמל ראשי", mamad: "צד צפון" },
+                    { level: 1, info: "קומה טיפוסית, 4 דירות", mamad: "מרכז קומה" },
+                    { level: 2, info: "קומה טיפוסית, 4 דירות", mamad: "מרכז קומה" }
+                ]
+            };
+            renderBuilding(mockData);
+            document.getElementById('loading-overlay').style.display = 'none';
+        }, 2000);
+    }
+
+    function renderBuilding(data) {
+        currentData = data;
+        floorGroup.clear();
+        const nav = document.getElementById('floor-navigation');
+        const info = document.getElementById('building-data');
+        nav.innerHTML = '';
+        
+        data.floors.forEach((f, i) => {
+            // יצירת מודל 3D
+            const geo = new THREE.BoxGeometry(10, 2.5, 8);
+            const mat = new THREE.MeshPhongMaterial({ color: 0x00bcf2, transparent: true, opacity: 0.6, wireframe: true });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.y = i * 3;
+            floorGroup.add(mesh);
+
+            // יצירת כפתורי ניווט
+            const btn = document.createElement('button');
+            btn.className = 'floor-btn';
+            btn.innerText = `קומה ${f.level}`;
+            btn.onclick = () => focusFloor(i);
+            nav.appendChild(btn);
+        });
+
+        info.innerHTML = `<h3>${data.building}</h3><p>מספר קומות: ${data.floors.length}</p>`;
+    }
+
+    function focusFloor(index) {
+        floorGroup.children.forEach((f, i) => {
+            f.visible = (i === index);
+            f.material.wireframe = false;
+        });
+        const f = currentData.floors[index];
+        document.getElementById('building-data').innerHTML = `
+            <h3>קומה ${f.level}</h3>
+            <p>${f.info}</p>
+            <p style="color:red;"><b>ממ"ד: ${f.mamad}</b></p>
+        `;
+    }
+
+    window.onload = init3D;
 </script>
 </body>
 </html>
