@@ -3,99 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת שליטה - נס ציונה חירום</title>
+    <title>מערכת שליטה קומתית - נס ציונה</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; display: flex; }
-        #sidebar { width: 300px; background: #252525; padding: 20px; border-left: 2px solid #444; overflow-y: auto; z-index: 100; }
-        #viewer-container { flex-grow: 1; position: relative; height: 100vh; }
-        canvas#drawing-layer { position: absolute; top: 0; left: 0; pointer-events: all; }
-        .controls { position: absolute; bottom: 20px; right: 20px; z-index: 200; display: flex; gap: 10px; }
-        button { padding: 10px; cursor: pointer; background: #ff4444; color: white; border: none; border-radius: 5px; }
-        #data-display { font-size: 14px; line-height: 1.6; }
-        .label { color: #aaa; font-size: 12px; }
+        body { margin: 0; background: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 320px; background: #1e1e1e; padding: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px; }
+        #viewer-container { flex-grow: 1; position: relative; background: radial-gradient(circle, #222 0%, #000 100%); }
+        canvas#drawing-layer { position: absolute; top: 0; left: 0; z-index: 10; touch-action: none; }
+        .floor-btn { padding: 10px; background: #333; border: 1px solid #444; color: white; cursor: pointer; border-radius: 4px; transition: 0.3s; }
+        .floor-btn.active { background: #0078d4; border-color: #00bcf2; }
+        .controls { position: absolute; top: 20px; right: 20px; z-index: 20; display: flex; gap: 10px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px; }
+        button.tool-btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        #status-tag { padding: 5px 10px; border-radius: 20px; font-size: 12px; display: inline-block; background: #2d2d2d; color: #00ff00; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>נתוני מבנה</h2>
-    <div id="data-display">העלה נתונים מה-Gem כדי להציג...</div>
-    <hr>
-    <h3>הערות מפקד</h3>
-    <textarea id="notes" style="width:100%; height:100px; background:#333; color:white; border:none;"></textarea>
+    <h2 style="margin:0; color:#00bcf2;">נס ציונה - מבנה חירום</h2>
+    <div id="status-tag">מצב: מודל פעיל</div>
+    <div id="floor-navigation">
+        <p><b>בחר תצוגה:</b></p>
+        <button class="floor-btn active" onclick="showAll()">🏢 בניין מלא</button>
+        <div id="floor-list" style="display:flex; flex-direction:column; gap:5px; margin-top:10px;"></div>
+    </div>
+    <hr style="width:100%; border:0; border-top:1px solid #333;">
+    <div id="data-panel">
+        <p>ממתין לנתוני קומה...</p>
+    </div>
 </div>
 
 <div id="viewer-container">
     <canvas id="drawing-layer"></canvas>
     <div class="controls">
-        <button onclick="setMode('draw')">✏️ צייר</button>
-        <button onclick="setMode('note')">💬 הערה</button>
-        <button onclick="clearCanvas()">🗑️ נקה</button>
-        <button onclick="shareLink()" style="background:#44ff44">🔗 שלח לינק</button>
+        <button class="tool-btn" style="background:#ff4444;" onclick="setDrawMode()">✏️ צייר</button>
+        <button class="tool-btn" style="background:#555;" onclick="clearCanvas()">🗑️ נקה</button>
+        <button class="tool-btn" style="background:#44ff44; color:black;" onclick="captureScreen()">💾 שמור תמונה</button>
     </div>
 </div>
 
 <script>
-    // --- 1. Three.js: 3D Engine ---
+    let buildingData = { floors: [] };
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 300) / window.innerHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 320) / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth - 300, window.innerHeight);
+    renderer.setSize(window.innerWidth - 320, window.innerHeight);
     document.getElementById('viewer-container').appendChild(renderer.domElement);
 
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(5, 5, 5).addListener;
-    scene.add(light, new THREE.AmbientLight(0x404040));
+    const light = new THREE.AmbientLight(0x404040, 2); 
+    const dLight = new THREE.DirectionalLight(0xffffff, 1);
+    dLight.position.set(5, 10, 7.5);
+    scene.add(light, dLight);
 
-    function createBuilding(data) {
-        // ניקוי סצנה קיימת
-        while(scene.children.length > 0){ scene.remove(scene.children[0]); }
-        
-        const geometry = new THREE.BoxGeometry(data.dimensions.width || 5, data.dimensions.floors * 3, data.dimensions.length || 5);
-        const material = new THREE.MeshPhongMaterial({ color: 0x808080, wireframe: true });
-        const building = new THREE.Mesh(geometry, material);
-        scene.add(building);
-        camera.position.z = 15;
+    const floorGroup = new THREE.Group();
+    scene.add(floorGroup);
+
+    // --- עיבוד נתונים מה-URL ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const rawData = urlParams.get('data');
+    if (rawData) {
+        try {
+            buildingData = JSON.parse(atob(rawData)); // פענוח Base64
+            initSystem();
+        } catch(e) { console.error("Data error", e); }
     }
 
-    // --- 2. Fabric.js: Drawing Layer ---
-    const canvas = new fabric.Canvas('drawing-layer', {
-        width: window.innerWidth - 300,
-        height: window.innerHeight,
-        isDrawingMode: true
-    });
-    canvas.freeDrawingBrush.color = "red";
-    canvas.freeDrawingBrush.width = 5;
-
-    function setMode(mode) {
-        canvas.isDrawingMode = (mode === 'draw');
+    function initSystem() {
+        const list = document.getElementById('floor-list');
+        buildingData.floors.forEach((f, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'floor-btn';
+            btn.innerText = `קומה ${f.level}`;
+            btn.onclick = () => showFloor(i);
+            list.appendChild(btn);
+        });
+        showAll();
     }
 
-    function clearCanvas() { canvas.clear(); }
+    function showFloor(index) {
+        floorGroup.children.forEach((child, i) => {
+            child.visible = (i === index);
+            child.material.wireframe = false;
+        });
+        updateSidebar(index);
+    }
 
-    // --- 3. Data Integration ---
-    function loadFromGem(jsonInput) {
-        const data = JSON.parse(jsonInput);
-        document.getElementById('data-display').innerHTML = `
-            <p><span class="label">כתובת:</span> ${data.building_info.address}</p>
-            <p><span class="label">קומות:</span> ${data.building_info.floors}</p>
-            <p><span class="label">מיקום ממ"ד:</span> ${data.critical_elements.mamad_locations.join(', ')}</p>
-            <p><span class="label">ניתוח:</span> ${data.analysis}</p>
+    function showAll() {
+        floorGroup.children.forEach(child => {
+            child.visible = true;
+            child.material.wireframe = true;
+        });
+        document.getElementById('data-panel').innerHTML = "<p>מציג מבנה מלא (שקוף)</p>";
+    }
+
+    function updateSidebar(index) {
+        const f = buildingData.floors[index];
+        document.getElementById('data-panel').innerHTML = `
+            <h3>קומה ${f.level}</h3>
+            <p><b>מידע:</b> ${f.info}</p>
+            <p style="color:#ff4444;"><b>מיקום ממ"ד:</b> ${f.mamad}</p>
         `;
-        createBuilding(data);
     }
 
-    function animate() {
-        requestAnimationFrame(animate);
-        renderer.render(scene, camera);
-    }
+    // יצירת הקומות (סימולציה לפי נתונים)
+    buildingData.floors.forEach((f, i) => {
+        const geo = new THREE.BoxGeometry(10, 2.8, 8);
+        const mat = new THREE.MeshPhongMaterial({ color: 0x0078d4, transparent: true, opacity: 0.7 });
+        const floor = new THREE.Mesh(geo, mat);
+        floor.position.y = i * 3;
+        floorGroup.add(floor);
+    });
+
+    camera.position.set(12, 12, 12);
+    camera.lookAt(0, 5, 0);
+
+    function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
     animate();
 
-    function shareLink() {
-        alert("הלינק הועתק! ניתן לשלוח כעת בוואטסאפ לצוות.");
-    }
+    // שכבת הציור (Fabric.js)
+    const canvas = new fabric.Canvas('drawing-layer', {
+        width: window.innerWidth - 320,
+        height: window.innerHeight,
+        isDrawingMode: false
+    });
+    function setDrawMode() { canvas.isDrawingMode = !canvas.isDrawingMode; }
+    function clearCanvas() { canvas.clear(); }
 </script>
 </body>
 </html>
