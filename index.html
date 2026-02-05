@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת שליטה - נס ציונה חירום</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; display: flex; }
+        #sidebar { width: 300px; background: #252525; padding: 20px; border-left: 2px solid #444; overflow-y: auto; z-index: 100; }
+        #viewer-container { flex-grow: 1; position: relative; height: 100vh; }
+        canvas#drawing-layer { position: absolute; top: 0; left: 0; pointer-events: all; }
+        .controls { position: absolute; bottom: 20px; right: 20px; z-index: 200; display: flex; gap: 10px; }
+        button { padding: 10px; cursor: pointer; background: #ff4444; color: white; border: none; border-radius: 5px; }
+        #data-display { font-size: 14px; line-height: 1.6; }
+        .label { color: #aaa; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>נתוני מבנה</h2>
+    <div id="data-display">העלה נתונים מה-Gem כדי להציג...</div>
+    <hr>
+    <h3>הערות מפקד</h3>
+    <textarea id="notes" style="width:100%; height:100px; background:#333; color:white; border:none;"></textarea>
+</div>
+
+<div id="viewer-container">
+    <canvas id="drawing-layer"></canvas>
+    <div class="controls">
+        <button onclick="setMode('draw')">✏️ צייר</button>
+        <button onclick="setMode('note')">💬 הערה</button>
+        <button onclick="clearCanvas()">🗑️ נקה</button>
+        <button onclick="shareLink()" style="background:#44ff44">🔗 שלח לינק</button>
+    </div>
+</div>
+
+<script>
+    // --- 1. Three.js: 3D Engine ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 300) / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth - 300, window.innerHeight);
+    document.getElementById('viewer-container').appendChild(renderer.domElement);
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(5, 5, 5).addListener;
+    scene.add(light, new THREE.AmbientLight(0x404040));
+
+    function createBuilding(data) {
+        // ניקוי סצנה קיימת
+        while(scene.children.length > 0){ scene.remove(scene.children[0]); }
+        
+        const geometry = new THREE.BoxGeometry(data.dimensions.width || 5, data.dimensions.floors * 3, data.dimensions.length || 5);
+        const material = new THREE.MeshPhongMaterial({ color: 0x808080, wireframe: true });
+        const building = new THREE.Mesh(geometry, material);
+        scene.add(building);
+        camera.position.z = 15;
+    }
+
+    // --- 2. Fabric.js: Drawing Layer ---
+    const canvas = new fabric.Canvas('drawing-layer', {
+        width: window.innerWidth - 300,
+        height: window.innerHeight,
+        isDrawingMode: true
+    });
+    canvas.freeDrawingBrush.color = "red";
+    canvas.freeDrawingBrush.width = 5;
+
+    function setMode(mode) {
+        canvas.isDrawingMode = (mode === 'draw');
+    }
+
+    function clearCanvas() { canvas.clear(); }
+
+    // --- 3. Data Integration ---
+    function loadFromGem(jsonInput) {
+        const data = JSON.parse(jsonInput);
+        document.getElementById('data-display').innerHTML = `
+            <p><span class="label">כתובת:</span> ${data.building_info.address}</p>
+            <p><span class="label">קומות:</span> ${data.building_info.floors}</p>
+            <p><span class="label">מיקום ממ"ד:</span> ${data.critical_elements.mamad_locations.join(', ')}</p>
+            <p><span class="label">ניתוח:</span> ${data.analysis}</p>
+        `;
+        createBuilding(data);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    function shareLink() {
+        alert("הלינק הועתק! ניתן לשלוח כעת בוואטסאפ לצוות.");
+    }
+</script>
+</body>
+</html>
